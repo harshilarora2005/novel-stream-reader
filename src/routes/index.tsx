@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { books, shelfSeries, allTags } from "@/lib/library";
+import { shelfSeries, allTags } from "@/lib/library";
+import { useLibrary } from "@/lib/store";
 import { CoverPlate } from "@/components/CoverPlate";
+import { ThemeToggle } from "@/components/ThemeToggle";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -22,6 +25,8 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
+  const books = useLibrary();
+
   return (
     <main className="min-h-screen bg-paper font-body text-ink">
       <section className="mx-auto max-w-[960px] px-5 pt-10 pb-8 sm:px-6 sm:pt-12">
