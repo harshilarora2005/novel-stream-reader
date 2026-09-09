@@ -58,7 +58,20 @@
   --tint: hsl(28 40% 68%);
 }
 
+.night {
+  --paper: hsl(0 0% 4%);
+  --paper-deep: hsl(0 0% 8%);
+  --ink: hsl(36 16% 82%);
+  --ink-soft: hsl(36 8% 58%);
+  --line: hsl(36 16% 82% / 0.12);
+  --inkline: hsl(36 16% 82% / 0.28);
+  --pencil: hsl(26 52% 52%);
+  --pencil-soft: hsl(26 34% 22%);
+  --tint: hsl(28 26% 62%);
+}
+
 .sepia {
+
   --paper: hsl(36 44% 91%);
   --paper-deep: hsl(35 40% 86%);
   --ink: hsl(28 30% 18%);
