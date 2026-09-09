@@ -25,7 +25,6 @@ export const Route = createFileRoute("/book/$slug")({
 function BookDetail() {
   const { slug } = Route.useParams();
   const book = useBook(slug);
-  const scraped = getBook(slug);
   const [confirm, setConfirm] = useState<number | null>(null);
 
   if (!book) throw notFound();
@@ -35,7 +34,7 @@ function BookDetail() {
       <div className="mx-auto max-w-[960px] px-5 py-8 sm:px-6 sm:py-10">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <Link
-            to="/"
+            to="/library"
             className="truncate font-mono text-[10px] uppercase tracking-[0.2em] text-tint"
           >
             ← Library
@@ -66,16 +65,6 @@ function BookDetail() {
                 {book.series ? `Series · ${book.series} · ${book.volume ?? ""}` : "No series"}
               </p>
               <p className="mt-1 truncate font-mono text-[10px] text-inkline">{book.source}</p>
-              {scraped && (
-                <button
-                  onClick={() =>
-                    updateBook(slug, { title: scraped.title, author: scraped.author })
-                  }
-                  className="mt-3 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-tint"
-                >
-                  <Undo2 className="size-3.5" /> Revert to scraped
-                </button>
-              )}
 
               <div className="mt-4 flex flex-wrap gap-2 font-mono text-[10px]">
                 {["EPUB", "PDF", "Markdown", "MOBI"].map((f) => (
