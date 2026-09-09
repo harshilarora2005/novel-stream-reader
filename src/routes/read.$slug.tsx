@@ -1,7 +1,27 @@
-import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, List, Settings, Download, ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
-import { useBook, removeChapter } from "@/lib/store";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import {
+  ArrowLeft,
+  List,
+  Settings,
+  Search,
+  Volume2,
+  Square,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  getBook,
+  getChapter,
+  deleteChapter,
+  updateBookMeta,
+  updateChapterMeta,
+} from "@/lib/books.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { fontStack, useSettings } from "@/lib/settings";
 import { ReaderSettings } from "@/components/ReaderSettings";
 
@@ -12,7 +32,7 @@ export const Route = createFileRoute("/read/$slug")({
       {
         name: "description",
         content:
-          "A distraction-free reading view with light, sepia, dark and night themes, adjustable type, chapter list and saved place.",
+          "A distraction-free reading view with light, sepia, dark and night themes, adjustable type, chapter list, in-book search, read aloud and saved place.",
       },
       { property: "og:title", content: "Reading — Marginal" },
       {
@@ -21,46 +41,159 @@ export const Route = createFileRoute("/read/$slug")({
       },
     ],
   }),
+  ssr: false,
   component: Reader,
 });
-
-const sample = [
-  "The harbour had emptied hours before she got there, and the piers were bare enough that her own footsteps came back to her off the water. She had walked two days without looking behind her once.",
-  "The ferryman kept his ledger the way he kept the tides — quietly, and without asking anyone to confirm them. He took her name, wrote it small, and pushed off.",
-  "Somewhere past the second buoy the mainland stopped being a place and became a pale line, and she could not say exactly when the change had happened, only that it had.",
-  "She counted the lanterns on the far shore instead. Nine of them, then eight, then nine again, which meant either the wind or someone walking, and she decided she preferred not to know which.",
-  "By morning the water had gone the colour of worn pewter and the island had arranged itself out of the fog, one roof at a time, as though it had been waiting to be asked.",
-];
 
 function Reader() {
   const { slug } = Route.useParams();
   const navigate = useNavigate();
-  const book = useBook(slug);
+  const qc = useQueryClient();
   const s = useSettings();
+  const [ready, setReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
+  const [speaking, setSpeaking] = useState(false);
+  const started = useRef(false);
 
-  const chapters = book?.chapters ?? [];
+  const fetchBook = useServerFn(getBook);
+  const fetchChapter = useServerFn(getChapter);
+  const dropChapter = useServerFn(deleteChapter);
+  const saveMeta = useServerFn(updateBookMeta);
+  const markChapter = useServerFn(updateChapterMeta);
 
   useEffect(() => {
-    const i = chapters.findIndex((c) => c.status === "reading");
-    if (i >= 0) setIndex(i);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug]);
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) navigate({ to: "/", replace: true });
+      else setReady(true);
+    });
+  }, [navigate]);
 
+  const bookQuery = useQuery({
+    queryKey: ["book", slug],
+    queryFn: () => fetchBook({ data: { slug } }),
+    enabled: ready,
+  });
+
+  const book = bookQuery.data?.book;
+  const chapters = useMemo(() => bookQuery.data?.chapters ?? [], [bookQuery.data]);
+
+  // Resume where the reader left off, once.
   useEffect(() => {
-    if (index > chapters.length - 1) setIndex(Math.max(0, chapters.length - 1));
-  }, [chapters.length, index]);
+    if (!book || started.current || chapters.length === 0) return;
+    started.current = true;
+    const i = chapters.findIndex((c) => c.n === book.current_chapter);
+    setIndex(i >= 0 ? i : 0);
+  }, [book, chapters]);
 
-  const chapter = chapters[Math.min(index, chapters.length - 1)];
+  const current = chapters[Math.min(index, chapters.length - 1)];
+
+  const chapterQuery = useQuery({
+    queryKey: ["chapter", book?.id, current?.n],
+    queryFn: () => fetchChapter({ data: { bookId: book!.id, n: current!.n } }),
+    enabled: Boolean(book && current),
+  });
+
+  const paragraphs = useMemo(
+    () =>
+      (chapterQuery.data?.content ?? "")
+        .split(/\n{2,}/)
+        .map((p) => p.trim())
+        .filter(Boolean),
+    [chapterQuery.data],
+  );
+
+  // Save reading position.
+  useEffect(() => {
+    if (!book || !current) return;
+    const pct = chapters.length ? Math.round(((index + 1) / chapters.length) * 100) : 0;
+    const t = setTimeout(() => {
+      void saveMeta({
+        data: {
+          slug,
+          patch: {
+            current_chapter: current.n,
+            progress: pct,
+            last_read_at: new Date().toISOString(),
+          },
+        },
+      })
+        .then(() => qc.invalidateQueries({ queryKey: ["books"] }))
+        .catch(() => {});
+      void markChapter({ data: { id: current.id, read: true } }).catch(() => {});
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [book, current, index, chapters.length, slug, saveMeta, markChapter, qc]);
+
+  // Stop speech whenever the chapter changes or the view unmounts.
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  function toggleSpeech() {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    const utter = new SpeechSynthesisUtterance(paragraphs.join("\n\n"));
+    utter.onend = () => setSpeaking(false);
+    utter.rate = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utter);
+    setSpeaking(true);
+  }
+
+  function go(next: number) {
+    window.speechSynthesis?.cancel();
+    setSpeaking(false);
+    setIndex(next);
+    window.scrollTo({ top: 0 });
+  }
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return chapters.filter((c) => c.title.toLowerCase().includes(q)).slice(0, 30);
+  }, [query, chapters]);
+
+  // Swipe between chapters on touch devices.
+  const touchX = useRef(0);
+
+  if (!ready || bookQuery.isLoading) return <div className="min-h-screen bg-paper" />;
+
+  if (!book) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-paper text-center text-ink">
+        <div>
+          <p className="font-display text-2xl">That book isn't on your shelf</p>
+          <Link to="/library" className="mt-4 inline-block text-sm text-ink-soft underline">
+            Back to library
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const progress = chapters.length ? ((index + 1) / chapters.length) * 100 : 0;
-  const body = useMemo(() => sample, []);
-
-  if (!book) throw notFound();
 
   return (
-    <div className="min-h-screen bg-paper text-ink">
+    <div
+      className="min-h-screen bg-paper text-ink"
+      onTouchStart={(e) => (touchX.current = e.touches[0]?.clientX ?? 0)}
+      onTouchEnd={(e) => {
+        const dx = (e.changedTouches[0]?.clientX ?? 0) - touchX.current;
+        if (Math.abs(dx) < 70) return;
+        if (dx < 0 && index < chapters.length - 1) go(index + 1);
+        if (dx > 0 && index > 0) go(index - 1);
+      }}
+    >
       <header
         className="sticky top-0 z-30 border-b border-line bg-paper/95 backdrop-blur"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
@@ -86,10 +219,18 @@ function Reader() {
           <p className="truncate text-center text-sm font-medium">{book.title}</p>
           <div className="flex items-center gap-1">
             <button
-              aria-label="Export"
+              onClick={() => setSearchOpen((v) => !v)}
+              aria-label="Search in book"
               className="grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-paper-deep hover:text-ink"
             >
-              <Download className="size-5" />
+              <Search className="size-5" />
+            </button>
+            <button
+              onClick={toggleSpeech}
+              aria-label={speaking ? "Stop reading aloud" : "Read aloud"}
+              className="grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-paper-deep hover:text-ink"
+            >
+              {speaking ? <Square className="size-4" /> : <Volume2 className="size-5" />}
             </button>
             <button
               onClick={() => setSettingsOpen(true)}
@@ -100,18 +241,45 @@ function Reader() {
             </button>
           </div>
         </div>
+        {searchOpen && (
+          <div className="mx-auto max-w-[1100px] px-3 pb-3 sm:px-6">
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search chapter titles…"
+              className="w-full rounded-lg border border-line bg-paper-deep px-3 py-2 text-sm outline-none"
+            />
+            {matches.length > 0 && (
+              <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-line">
+                {matches.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      go(chapters.findIndex((c) => c.id === m.id));
+                      setSearchOpen(false);
+                    }}
+                    className="block w-full truncate px-3 py-2 text-left text-sm hover:bg-paper-deep"
+                  >
+                    {m.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="h-0.5 w-full bg-ink/10">
           <div className="h-full bg-pencil transition-all" style={{ width: `${progress}%` }} />
         </div>
       </header>
 
-      {chapter ? (
+      {current ? (
         <article className="mx-auto animate-fade px-5 pb-24 pt-12 sm:px-8">
           <p className="text-center font-mono text-[10px] uppercase tracking-[0.25em] text-ink-soft">
             Chapter {index + 1} of {chapters.length}
           </p>
           <h1 className="mx-auto mt-3 max-w-[24ch] text-balance text-center font-display text-3xl leading-tight tracking-tight sm:text-4xl">
-            {chapter.title}
+            {current.title}
           </h1>
           <div className="mx-auto mt-6 h-px w-12 bg-inkline" />
 
@@ -124,17 +292,25 @@ function Reader() {
               maxWidth: `${s.width}ch`,
             }}
           >
-            {body.map((p, i) => (
-              <p key={i} className="mb-6 text-pretty">
-                {p}
+            {chapterQuery.isLoading ? (
+              <p className="text-center font-mono text-[11px] text-ink-soft">Opening chapter…</p>
+            ) : paragraphs.length === 0 ? (
+              <p className="text-center font-mono text-[11px] text-destructive">
+                This chapter came back empty — the source page may have blocked the reader.
               </p>
-            ))}
+            ) : (
+              paragraphs.map((p, i) => (
+                <p key={i} className="mb-6 text-pretty">
+                  {p}
+                </p>
+              ))
+            )}
           </div>
 
           <nav className="mx-auto mt-14 grid max-w-[720px] grid-cols-[1fr_auto_1fr] items-center gap-3 border-t border-line pt-6">
             <button
               disabled={index === 0}
-              onClick={() => setIndex((i) => Math.max(0, i - 1))}
+              onClick={() => go(index - 1)}
               className="flex items-center gap-1.5 justify-self-start rounded-lg border border-line px-3 py-2 text-sm text-ink-soft transition-colors hover:border-inkline hover:text-ink disabled:opacity-30"
             >
               <ChevronLeft className="size-4" /> Previous
@@ -144,7 +320,7 @@ function Reader() {
             </span>
             <button
               disabled={index >= chapters.length - 1}
-              onClick={() => setIndex((i) => Math.min(chapters.length - 1, i + 1))}
+              onClick={() => go(index + 1)}
               className="flex items-center gap-1.5 justify-self-end rounded-lg border border-line px-3 py-2 text-sm transition-colors hover:border-inkline disabled:opacity-30"
             >
               Next <ChevronRight className="size-4" />
@@ -154,9 +330,7 @@ function Reader() {
       ) : (
         <div className="mx-auto max-w-[420px] px-6 py-24 text-center">
           <p className="font-display text-2xl">No chapters left</p>
-          <p className="mt-2 text-sm text-ink-soft">
-            Every chapter in this book has been removed.
-          </p>
+          <p className="mt-2 text-sm text-ink-soft">Every chapter in this book has been removed.</p>
           <button
             onClick={() => navigate({ to: "/book/$slug", params: { slug: book.slug } })}
             className="mt-5 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-paper"
@@ -192,26 +366,29 @@ function Reader() {
         <div className="flex-1 overflow-y-auto p-2 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           {chapters.map((c, i) => (
             <div
-              key={c.n}
+              key={c.id}
               className={`group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-3 py-2.5 ${
                 i === index ? "bg-pencil-soft/50" : "hover:bg-paper-deep"
               }`}
             >
               <button
                 onClick={() => {
-                  setIndex(i);
+                  go(i);
                   setTocOpen(false);
-                  window.scrollTo({ top: 0 });
                 }}
                 className="min-w-0 text-left"
               >
                 <span className="block truncate text-sm">{c.title}</span>
                 <span className="font-mono text-[10px] text-ink-soft">
                   {String(c.n).padStart(2, "0")} · {c.words.toLocaleString()} words
+                  {c.flagged ? " · check parse" : ""}
                 </span>
               </button>
               <button
-                onClick={() => removeChapter(book.slug, c.n)}
+                onClick={async () => {
+                  await dropChapter({ data: { id: c.id } });
+                  await qc.invalidateQueries({ queryKey: ["book", slug] });
+                }}
                 aria-label={`Remove ${c.title}`}
                 className="shrink-0 rounded-md p-1.5 text-ink-soft opacity-60 transition-colors hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
               >

@@ -39,6 +39,26 @@ const defaults: Settings = {
 };
 
 let state: Settings = defaults;
+let pusher: ((s: Settings) => void) | null = null;
+
+/** Registered once a user is signed in, so preferences follow them across devices. */
+export function setSettingsPusher(fn: ((s: Settings) => void) | null) {
+  pusher = fn;
+}
+
+/** Apply preferences that came back from the account, without pushing them again. */
+export function applyRemoteSettings(patch: Partial<Settings>) {
+  state = { ...state, ...patch };
+  applyTheme(state.theme);
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.setItem(KEY, JSON.stringify(state));
+    } catch {
+      /* ignore */
+    }
+  }
+  emit();
+}
 let hydrated = false;
 const listeners = new Set<() => void>();
 
@@ -85,6 +105,7 @@ export function setSettings(patch: Partial<Settings>) {
       /* ignore */
     }
   }
+  pusher?.(state);
   emit();
 }
 

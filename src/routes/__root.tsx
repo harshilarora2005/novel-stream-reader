@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { hydrateSettings } from "../lib/settings";
 import { hydrateLibrary } from "../lib/store";
+import { PrefsSync } from "../components/PrefsSync";
 
 
 function NotFoundComponent() {
@@ -137,6 +138,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <PrefsSync />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>
