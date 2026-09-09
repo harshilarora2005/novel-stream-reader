@@ -14,7 +14,146 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      books: {
+        Row: {
+          author: string
+          cover_url: string | null
+          created_at: string
+          current_chapter: number
+          id: string
+          last_read_at: string | null
+          mode: string
+          next_url: string | null
+          progress: number
+          scraped_author: string | null
+          scraped_cover_url: string | null
+          scraped_title: string | null
+          series: string | null
+          slug: string
+          source_url: string
+          tags: string[]
+          title: string
+          updated_at: string
+          updating: boolean
+          user_id: string
+          volume: string | null
+        }
+        Insert: {
+          author?: string
+          cover_url?: string | null
+          created_at?: string
+          current_chapter?: number
+          id?: string
+          last_read_at?: string | null
+          mode?: string
+          next_url?: string | null
+          progress?: number
+          scraped_author?: string | null
+          scraped_cover_url?: string | null
+          scraped_title?: string | null
+          series?: string | null
+          slug: string
+          source_url: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+          updating?: boolean
+          user_id: string
+          volume?: string | null
+        }
+        Update: {
+          author?: string
+          cover_url?: string | null
+          created_at?: string
+          current_chapter?: number
+          id?: string
+          last_read_at?: string | null
+          mode?: string
+          next_url?: string | null
+          progress?: number
+          scraped_author?: string | null
+          scraped_cover_url?: string | null
+          scraped_title?: string | null
+          series?: string | null
+          slug?: string
+          source_url?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          updating?: boolean
+          user_id?: string
+          volume?: string | null
+        }
+        Relationships: []
+      }
+      chapters: {
+        Row: {
+          book_id: string
+          content: string
+          created_at: string
+          flagged: boolean
+          id: string
+          n: number
+          read: boolean
+          title: string
+          url: string | null
+          user_id: string
+          words: number
+        }
+        Insert: {
+          book_id: string
+          content?: string
+          created_at?: string
+          flagged?: boolean
+          id?: string
+          n: number
+          read?: boolean
+          title: string
+          url?: string | null
+          user_id: string
+          words?: number
+        }
+        Update: {
+          book_id?: string
+          content?: string
+          created_at?: string
+          flagged?: boolean
+          id?: string
+          n?: number
+          read?: boolean
+          title?: string
+          url?: string | null
+          user_id?: string
+          words?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapters_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reader_prefs: {
+        Row: {
+          data: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          data?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          data?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
