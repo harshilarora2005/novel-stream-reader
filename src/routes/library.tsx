@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { seriesGroups, collectTags } from "@/lib/library";
-import { useLibrary } from "@/lib/store";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Loader2 } from "lucide-react";
+import { listBooks, importUrl, type BookRow } from "@/lib/books.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { CoverPlate } from "@/components/CoverPlate";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -27,11 +28,22 @@ export const Route = createFileRoute("/library")({
   component: Library,
 });
 
+function seriesGroups(list: BookRow[]) {
+  const map = new Map<string, BookRow[]>();
+  for (const b of list) {
+    if (!b.series) continue;
+    map.set(b.series, [...(map.get(b.series) ?? []), b]);
+  }
+  return [...map.entries()].map(([name, volumes]) => ({ name, volumes }));
+}
+
 function Library() {
-  const books = useLibrary();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [ready, setReady] = useState(false);
+  const [url, setUrl] = useState("");
+  const fetchBooks = useServerFn(listBooks);
+  const runImport = useServerFn(importUrl);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -44,6 +56,21 @@ function Library() {
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
 
+  const booksQuery = useQuery({
+    queryKey: ["books"],
+    queryFn: () => fetchBooks(),
+    enabled: ready,
+  });
+
+  const importer = useMutation({
+    mutationFn: (link: string) => runImport({ data: { url: link } }),
+    onSuccess: async (res) => {
+      setUrl("");
+      await queryClient.invalidateQueries({ queryKey: ["books"] });
+      navigate({ to: "/book/$slug", params: { slug: res.slug } });
+    },
+  });
+
   async function signOut() {
     await queryClient.cancelQueries();
     queryClient.clear();
@@ -53,9 +80,10 @@ function Library() {
 
   if (!ready) return <main className="min-h-screen bg-paper" />;
 
+  const books = booksQuery.data ?? [];
   const inProgress = books.filter((b) => b.progress > 0 && b.progress < 100);
   const series = seriesGroups(books);
-  const tags = collectTags(books);
+  const tags = [...new Set(books.flatMap((b) => b.tags))];
 
   return (
     <main className="min-h-screen bg-paper font-body text-ink">
@@ -83,21 +111,42 @@ function Library() {
         </div>
 
         <form
-          onSubmit={(e) => e.preventDefault()}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const v = url.trim();
+            if (v) importer.mutate(v);
+          }}
           className="mt-9 flex animate-fade-up items-center gap-3 rounded-xl border border-line bg-paper-deep px-4 py-3.5 [animation-delay:120ms]"
         >
           <span className="font-mono text-sm text-tint">⌘</span>
           <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            disabled={importer.isPending}
             className="flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-soft/60"
             placeholder="Paste a chapter or table-of-contents link…"
           />
           <span className="hidden font-mono text-[10px] tracking-[0.2em] text-inkline md:block">
             LINK
           </span>
-          <button className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-colors hover:bg-ink/80">
-            Add
+          <button
+            disabled={importer.isPending}
+            className="flex items-center gap-2 rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-colors hover:bg-ink/80 disabled:opacity-60"
+          >
+            {importer.isPending && <Loader2 className="size-4 animate-spin" />}
+            {importer.isPending ? "Reading…" : "Add"}
           </button>
         </form>
+        {importer.isPending && (
+          <p className="mt-2 font-mono text-[11px] text-ink-soft">
+            Fetching chapters politely, one at a time. Long books can take a minute.
+          </p>
+        )}
+        {importer.isError && (
+          <p className="mt-2 text-sm text-destructive">
+            {(importer.error as Error).message || "That link couldn't be read."}
+          </p>
+        )}
       </section>
 
       <section className="mx-auto max-w-[960px] px-6 py-10">
@@ -133,9 +182,11 @@ function Library() {
                 </div>
                 <div className="mt-3 flex items-center justify-between font-mono text-[10px] text-ink-soft">
                   <span>
-                    Ch. {b.currentChapter} · {b.progress}%
+                    Ch. {b.current_chapter} · {b.progress}%
                   </span>
-                  <span className="text-tint">{b.lastRead}</span>
+                  <span className="text-tint">
+                    {b.last_read_at ? new Date(b.last_read_at).toLocaleDateString() : ""}
+                  </span>
                 </div>
               </Link>
             ))}
@@ -149,7 +200,9 @@ function Library() {
           <span className="font-mono text-[10px] text-ink-soft">{books.length} books</span>
         </div>
 
-        {books.length === 0 ? (
+        {booksQuery.isLoading ? (
+          <p className="mt-5 text-center font-mono text-[11px] text-ink-soft">Loading your shelf…</p>
+        ) : books.length === 0 ? (
           <p className="mt-5 rounded-xl border border-dashed border-line px-5 py-10 text-center text-sm text-ink-soft">
             Your shelf is empty. Everything you add lives here — grouped by series, sorted by you.
           </p>
@@ -171,7 +224,16 @@ function Library() {
                   className="animate-fade-up rounded-xl border border-line bg-paper-deep/30 p-3 transition-colors hover:border-inkline"
                   style={{ animationDelay: `${180 + i * 70}ms` }}
                 >
-                  <CoverPlate className="aspect-[3/4] w-full" />
+                  {b.cover_url ? (
+                    <img
+                      src={b.cover_url}
+                      alt={`Cover of ${b.title}`}
+                      loading="lazy"
+                      className="aspect-[3/4] w-full rounded-md object-cover"
+                    />
+                  ) : (
+                    <CoverPlate className="aspect-[3/4] w-full" />
+                  )}
                   <p className="mt-3 font-display text-base leading-tight">{b.title}</p>
                   <p className="text-xs text-ink-soft">
                     {b.volume ? `${b.volume} · ` : ""}
