@@ -1,6 +1,9 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { getBook, books } from "@/lib/library";
+import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, List, Settings, Download, ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
+import { useBook, removeChapter } from "@/lib/store";
+import { fontStack, useSettings } from "@/lib/settings";
+import { ReaderSettings } from "@/components/ReaderSettings";
 
 export const Route = createFileRoute("/read/$slug")({
   head: () => ({
@@ -9,178 +12,217 @@ export const Route = createFileRoute("/read/$slug")({
       {
         name: "description",
         content:
-          "A quiet reading view: paper, sepia and night themes, adjustable type, margin notes and progress that remembers your place.",
+          "A distraction-free reading view with light, sepia, dark and night themes, adjustable type, chapter list and saved place.",
       },
       { property: "og:title", content: "Reading — Marginal" },
       {
         property: "og:description",
-        content: "Set like a paperback: adjustable type, margin notes, saved place.",
+        content: "Set like a paperback: adjustable type, four themes, saved place.",
       },
     ],
   }),
   component: Reader,
 });
 
-const paragraphs = [
+const sample = [
   "The harbour had emptied hours before she got there, and the piers were bare enough that her own footsteps came back to her off the water. She had walked two days without looking behind her once.",
   "The ferryman kept his ledger the way he kept the tides — quietly, and without asking anyone to confirm them. He took her name, wrote it small, and pushed off.",
-  "Somewhere past the second buoy the mainland stopped being a place and became a pale line, and Sefira found she could not say exactly when the change had happened, only that it had.",
+  "Somewhere past the second buoy the mainland stopped being a place and became a pale line, and she could not say exactly when the change had happened, only that it had.",
   "She counted the lanterns on the far shore instead. Nine of them, then eight, then nine again, which meant either the wind or someone walking, and she decided she preferred not to know which.",
+  "By morning the water had gone the colour of worn pewter and the island had arranged itself out of the fog, one roof at a time, as though it had been waiting to be asked.",
 ];
-
-const themes = ["paper", "sepia", "night"] as const;
 
 function Reader() {
   const { slug } = Route.useParams();
-  const book = getBook(slug) ?? books[0];
-  if (!book) throw notFound();
+  const navigate = useNavigate();
+  const book = useBook(slug);
+  const s = useSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tocOpen, setTocOpen] = useState(false);
+  const [index, setIndex] = useState(0);
 
-  const [theme, setTheme] = useState<(typeof themes)[number]>("paper");
-  const [size, setSize] = useState(19);
-  const [leading, setLeading] = useState(1.8);
+  const chapters = book?.chapters ?? [];
 
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.remove("dark", "sepia");
-    if (theme === "night") root.classList.add("dark");
-    if (theme === "sepia") root.classList.add("sepia");
-    return () => root.classList.remove("dark", "sepia");
-  }, [theme]);
+    const i = chapters.findIndex((c) => c.status === "reading");
+    if (i >= 0) setIndex(i);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
-  const chapter = book.chapters.find((c) => c.status === "reading") ?? book.chapters[0]!;
+  useEffect(() => {
+    if (index > chapters.length - 1) setIndex(Math.max(0, chapters.length - 1));
+  }, [chapters.length, index]);
+
+  const chapter = chapters[Math.min(index, chapters.length - 1)];
+  const progress = chapters.length ? ((index + 1) / chapters.length) * 100 : 0;
+  const body = useMemo(() => sample, []);
+
+  if (!book) throw notFound();
 
   return (
-    <main className="min-h-screen bg-paper font-body text-ink">
-      <header className="sticky top-0 z-20 border-b border-line bg-paper/90 backdrop-blur">
-        <div className="mx-auto flex max-w-[960px] items-center justify-between gap-4 px-6 py-3">
-          <Link
-            to="/book/$slug"
-            params={{ slug: book.slug }}
-            className="truncate font-mono text-[10px] uppercase tracking-[0.2em] text-tint"
-          >
-            ← {book.title}
-          </Link>
-          <span className="font-mono text-[10px] text-ink-soft">
-            Ch. {chapter.n} · {book.progress}%
-          </span>
+    <div className="min-h-screen bg-paper text-ink">
+      <header
+        className="sticky top-0 z-30 border-b border-line bg-paper/95 backdrop-blur"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <div className="mx-auto grid max-w-[1100px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 sm:px-6">
+          <div className="flex items-center gap-1">
+            <Link
+              to="/book/$slug"
+              params={{ slug: book.slug }}
+              aria-label="Back to book"
+              className="grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-paper-deep hover:text-ink"
+            >
+              <ArrowLeft className="size-5" />
+            </Link>
+            <button
+              onClick={() => setTocOpen(true)}
+              aria-label="Chapters"
+              className="grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-paper-deep hover:text-ink"
+            >
+              <List className="size-5" />
+            </button>
+          </div>
+          <p className="truncate text-center text-sm font-medium">{book.title}</p>
+          <div className="flex items-center gap-1">
+            <button
+              aria-label="Export"
+              className="grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-paper-deep hover:text-ink"
+            >
+              <Download className="size-5" />
+            </button>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Reader settings"
+              className="grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-paper-deep hover:text-ink"
+            >
+              <Settings className="size-5" />
+            </button>
+          </div>
         </div>
         <div className="h-0.5 w-full bg-ink/10">
-          <div className="h-full bg-pencil" style={{ width: `${book.progress}%` }} />
+          <div className="h-full bg-pencil transition-all" style={{ width: `${progress}%` }} />
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[960px] gap-10 px-6 py-12 lg:grid-cols-[minmax(0,1fr)_240px]">
-        <article className="min-w-0 animate-fade">
-          <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-tint">
-            Chapter {chapter.n}
+      {chapter ? (
+        <article className="mx-auto animate-fade px-5 pb-24 pt-12 sm:px-8">
+          <p className="text-center font-mono text-[10px] uppercase tracking-[0.25em] text-ink-soft">
+            Chapter {index + 1} of {chapters.length}
           </p>
-          <h1 className="mt-3 font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+          <h1 className="mx-auto mt-3 max-w-[24ch] text-balance text-center font-display text-3xl leading-tight tracking-tight sm:text-4xl">
             {chapter.title}
           </h1>
-          <p className="mt-2 text-sm text-ink-soft">
-            {book.author}
-            {book.series ? ` · ${book.series} ${book.volume ?? ""}` : ""}
-          </p>
+          <div className="mx-auto mt-6 h-px w-12 bg-inkline" />
 
           <div
-            className="mt-9 max-w-[68ch] font-reading"
-            style={{ fontSize: `${size}px`, lineHeight: leading }}
+            className="mx-auto mt-10"
+            style={{
+              fontFamily: fontStack(s.font),
+              fontSize: `${s.size}px`,
+              lineHeight: s.leading,
+              maxWidth: `${s.width}ch`,
+            }}
           >
-            {paragraphs.map((p, i) => (
+            {body.map((p, i) => (
               <p key={i} className="mb-6 text-pretty">
-                {i === 1 ? <span className="hl">{p}</span> : p}
+                {p}
               </p>
             ))}
           </div>
 
-          <div className="mt-10 flex items-center justify-between border-t border-line pt-6 text-sm">
-            <button className="text-ink-soft transition-colors hover:text-ink">
-              ← Chapter {chapter.n - 1}
+          <nav className="mx-auto mt-14 grid max-w-[720px] grid-cols-[1fr_auto_1fr] items-center gap-3 border-t border-line pt-6">
+            <button
+              disabled={index === 0}
+              onClick={() => setIndex((i) => Math.max(0, i - 1))}
+              className="flex items-center gap-1.5 justify-self-start rounded-lg border border-line px-3 py-2 text-sm text-ink-soft transition-colors hover:border-inkline hover:text-ink disabled:opacity-30"
+            >
+              <ChevronLeft className="size-4" /> Previous
             </button>
-            <button className="font-medium transition-colors hover:text-tint">
-              Chapter {chapter.n + 1} →
+            <span className="font-mono text-[10px] text-ink-soft">
+              {index + 1} / {chapters.length}
+            </span>
+            <button
+              disabled={index >= chapters.length - 1}
+              onClick={() => setIndex((i) => Math.min(chapters.length - 1, i + 1))}
+              className="flex items-center gap-1.5 justify-self-end rounded-lg border border-line px-3 py-2 text-sm transition-colors hover:border-inkline disabled:opacity-30"
+            >
+              Next <ChevronRight className="size-4" />
             </button>
-          </div>
+          </nav>
         </article>
+      ) : (
+        <div className="mx-auto max-w-[420px] px-6 py-24 text-center">
+          <p className="font-display text-2xl">No chapters left</p>
+          <p className="mt-2 text-sm text-ink-soft">
+            Every chapter in this book has been removed.
+          </p>
+          <button
+            onClick={() => navigate({ to: "/book/$slug", params: { slug: book.slug } })}
+            className="mt-5 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-paper"
+          >
+            Back to book
+          </button>
+        </div>
+      )}
 
-        <aside className="space-y-8">
-          <div>
-            <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-tint">Theme</p>
-            <div className="flex gap-2 font-mono text-[10px]">
-              {themes.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTheme(t)}
-                  className={`rounded-full border px-2.5 py-1 capitalize ${
-                    theme === t ? "border-inkline text-ink" : "border-line text-ink-soft"
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
+      {/* Chapter list */}
+      <div
+        onClick={() => setTocOpen(false)}
+        className={`fixed inset-0 z-40 bg-ink/40 transition-opacity ${
+          tocOpen ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-full max-w-[340px] flex-col border-r border-line bg-paper transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+          tocOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-line px-5 py-4">
+          <h2 className="truncate font-display text-xl">Chapters</h2>
+          <button
+            onClick={() => setTocOpen(false)}
+            aria-label="Close chapters"
+            className="shrink-0 text-ink-soft hover:text-ink"
+          >
+            <X className="size-5" />
+          </button>
+        </header>
+        <div className="flex-1 overflow-y-auto p-2 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          {chapters.map((c, i) => (
+            <div
+              key={c.n}
+              className={`group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-3 py-2.5 ${
+                i === index ? "bg-pencil-soft/50" : "hover:bg-paper-deep"
+              }`}
+            >
+              <button
+                onClick={() => {
+                  setIndex(i);
+                  setTocOpen(false);
+                  window.scrollTo({ top: 0 });
+                }}
+                className="min-w-0 text-left"
+              >
+                <span className="block truncate text-sm">{c.title}</span>
+                <span className="font-mono text-[10px] text-ink-soft">
+                  {String(c.n).padStart(2, "0")} · {c.words.toLocaleString()} words
+                </span>
+              </button>
+              <button
+                onClick={() => removeChapter(book.slug, c.n)}
+                aria-label={`Remove ${c.title}`}
+                className="shrink-0 rounded-md p-1.5 text-ink-soft opacity-60 transition-colors hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
+              >
+                <Trash2 className="size-4" />
+              </button>
             </div>
-          </div>
+          ))}
+        </div>
+      </aside>
 
-          <div>
-            <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-tint">Type</p>
-            <label className="flex items-center justify-between font-mono text-[10px] text-ink-soft">
-              <span>Size</span>
-              <span>{size}px</span>
-            </label>
-            <input
-              type="range"
-              min={15}
-              max={26}
-              value={size}
-              onChange={(e) => setSize(Number(e.target.value))}
-              className="mt-2 w-full accent-pencil"
-            />
-            <label className="mt-4 flex items-center justify-between font-mono text-[10px] text-ink-soft">
-              <span>Line height</span>
-              <span>{leading.toFixed(2)}</span>
-            </label>
-            <input
-              type="range"
-              min={1.4}
-              max={2.2}
-              step={0.05}
-              value={leading}
-              onChange={(e) => setLeading(Number(e.target.value))}
-              className="mt-2 w-full accent-pencil"
-            />
-          </div>
-
-          <div>
-            <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-tint">
-              Margin notes
-            </p>
-            <div className="rounded-xl border border-line bg-paper-deep/30 p-3">
-              <p className="font-display text-[13px] italic leading-relaxed">
-                The ledger and the tides — same image as the prologue.
-              </p>
-              <p className="mt-2 font-mono text-[10px] text-ink-soft">2h ago</p>
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-tint">
-              Session
-            </p>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                ["128k", "words"],
-                ["9", "streak"],
-                ["4.2h", "left"],
-              ].map(([v, l]) => (
-                <div key={l}>
-                  <p className="font-display text-xl">{v}</p>
-                  <p className="font-mono text-[10px] text-ink-soft">{l}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </aside>
-      </div>
-    </main>
+      <ReaderSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    </div>
   );
 }
