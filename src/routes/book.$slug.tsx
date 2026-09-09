@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Trash2, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { useBook, removeChapter, updateBook, updateChapter } from "@/lib/store";
-import { getBook } from "@/lib/library";
+
 import { CoverPlate } from "@/components/CoverPlate";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
