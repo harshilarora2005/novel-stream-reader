@@ -113,7 +113,9 @@ export const importUrl = createServerFn({ method: "POST" })
     const meta = pageMeta(first.html, first.finalUrl);
     const links = findChapterLinks(first.html, first.finalUrl);
     const selfExtract = extractFromHtml(first.html, first.finalUrl);
-    const isIndex = links.length >= 5 && selfExtract.words < 1200;
+    // A table of contents has many chapter links and little prose of its own.
+    const density = links.length ? selfExtract.words / links.length : Infinity;
+    const isIndex = links.length >= 5 && density < 250;
 
     const targets: { url: string; title?: string }[] = [];
     let mode: "index" | "chapter" = "chapter";

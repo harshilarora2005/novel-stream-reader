@@ -88,16 +88,36 @@ export function extractFromHtml(html: string, url: string): ExtractedChapter {
   return { title: title.slice(0, 200) || "Chapter", paragraphs, words, url, flagged: words < 250 };
 }
 
+/** Drop the trailing site name web novel hosts append to page titles. */
+function stripSite(title: string, site: string) {
+  let t = title;
+  if (site) {
+    const re = new RegExp(`\\s*[-–—|]\\s*${site.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "i");
+    t = t.replace(re, "");
+  }
+  const parts = t.split(/\s+[-–—|]\s+/);
+  if (parts.length > 1) {
+    const tail = parts[parts.length - 1]!;
+    const head = parts.slice(0, -1).join(" - ");
+    if (head.length >= 8 && (/wikisource|library|novel|read|com$|net$|org$/i.test(tail) || tail.split(" ").length > 3))
+      t = head;
+  }
+  return t.trim();
+}
+
 export function pageMeta(html: string, url: string) {
   const { document } = parseHTML(html);
   const meta = (sel: string, attr = "content") =>
     document.querySelector(sel)?.getAttribute(attr)?.trim() || "";
 
-  const title =
+  const site = meta('meta[property="og:site_name"]');
+  const rawTitle =
     meta('meta[property="og:title"]') ||
     (document.querySelector("h1")?.textContent ?? "").replace(/\s+/g, " ").trim() ||
     (document.title ?? "").replace(/\s+/g, " ").trim() ||
     new URL(url).hostname;
+
+  const title = stripSite(rawTitle, site);
 
   const author =
     meta('meta[name="author"]') ||
