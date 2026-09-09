@@ -24,11 +24,11 @@ export const Route = createFileRoute("/")({
 function Home() {
   return (
     <main className="min-h-screen bg-paper font-body text-ink">
-      <section className="mx-auto max-w-[960px] px-6 pt-12 pb-8">
-        <div className="flex animate-fade-up items-end justify-between">
-          <div>
+      <section className="mx-auto max-w-[960px] px-5 pt-10 pb-8 sm:px-6 sm:pt-12">
+        <div className="grid animate-fade-up grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+          <div className="min-w-0">
             <p className="label text-tint">Marginal</p>
-            <h1 className="mt-2 text-balance font-display text-4xl tracking-tight md:text-5xl">
+            <h1 className="mt-2 text-balance font-display text-3xl tracking-tight sm:text-4xl md:text-5xl">
               A reading room, not a feed.
             </h1>
             <p className="mt-3 max-w-[46ch] text-pretty text-[15px] text-ink-soft">
@@ -36,14 +36,9 @@ function Home() {
               like a well-worn paperback you'd keep.
             </p>
           </div>
-          <div className="hidden text-right font-mono text-[11px] leading-relaxed text-tint sm:block">
-            12 books
-            <br />
-            231 highlights
-            <br />
-            Day 41
-          </div>
+          <ThemeToggle />
         </div>
+
 
         <form
           onSubmit={(e) => e.preventDefault()}
