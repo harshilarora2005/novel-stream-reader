@@ -33,6 +33,17 @@ export type ChapterRow = {
   read: boolean;
 };
 
+const prefsSchema = z.object({
+  theme: z.string().optional(),
+  autoNight: z.boolean().optional(),
+  font: z.string().optional(),
+  size: z.number().optional(),
+  leading: z.number().optional(),
+  width: z.number().optional(),
+});
+
+export type PrefsData = z.infer<typeof prefsSchema>;
+
 const MAX_CHAPTERS = 60;
 const DELAY_MS = 450;
 
@@ -231,7 +242,7 @@ export const updateBookMeta = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("books")
-      .update({ ...data.patch, updated_at: new Date().toISOString() })
+      .update({ ...data.patch, updated_at: new Date().toISOString() } as never)
       .eq("slug", data.slug);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -255,7 +266,10 @@ export const updateChapterMeta = createServerFn({ method: "POST" })
     const patch: Record<string, unknown> = {};
     if (data.title !== undefined) patch['title'] = data.title;
     if (data.read !== undefined) patch['read'] = data.read;
-    const { error } = await context.supabase.from("chapters").update(patch).eq("id", data.id);
+    const { error } = await context.supabase
+      .from("chapters")
+      .update(patch as never)
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -295,18 +309,20 @@ export const getPrefs = createServerFn({ method: "GET" })
       .select("data")
       .eq("user_id", context.userId)
       .maybeSingle();
-    return (data?.data ?? null) as Record<string, unknown> | null;
+    return (data?.data ?? null) as PrefsData | null;
   });
 
 export const savePrefs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { data: Record<string, unknown> }) =>
-    z.object({ data: z.record(z.string(), z.unknown()) }).parse(d),
-  )
+  .inputValidator((d: { data: PrefsData }) => z.object({ data: prefsSchema }).parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("reader_prefs")
-      .upsert({ user_id: context.userId, data: data.data, updated_at: new Date().toISOString() });
+      .upsert({
+        user_id: context.userId,
+        data: data.data as never,
+        updated_at: new Date().toISOString(),
+      });
     if (error) throw new Error(error.message);
     return { ok: true };
   });

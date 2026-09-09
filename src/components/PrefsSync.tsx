@@ -26,7 +26,7 @@ export function PrefsSync() {
       setSettingsPusher((s) => {
         clearTimeout(timer);
         timer = setTimeout(() => {
-          void savePrefs({ data: { ...s } }).catch(() => {});
+          void savePrefs({ data: { data: { ...s } } }).catch(() => {});
         }, 800);
       });
     }
