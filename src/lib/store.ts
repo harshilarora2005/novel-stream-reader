@@ -4,6 +4,18 @@ import { books as seed, type Book, type Chapter } from "./library";
 const KEY = "marginal.library.v1";
 
 let state: Book[] = seed;
+
+export function addBook(book: Book) {
+  state = [book, ...state.filter((b) => b.slug !== book.slug)];
+  persist();
+  emit();
+}
+
+export function removeBook(slug: string) {
+  state = state.filter((b) => b.slug !== slug);
+  persist();
+  emit();
+}
 let hydrated = false;
 const listeners = new Set<() => void>();
 

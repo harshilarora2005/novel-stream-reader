@@ -1,166 +1,174 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { shelfSeries, allTags } from "@/lib/library";
-import { useLibrary } from "@/lib/store";
-import { CoverPlate } from "@/components/CoverPlate";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable/index";
 import { ThemeToggle } from "@/components/ThemeToggle";
-
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Marginal — your reading room" },
+      { title: "Sign in to Marginal — your reading room" },
       {
         name: "description",
         content:
-          "Paste a novel link and Marginal builds a clean library: extracted chapters, editable covers and titles, progress that follows you.",
+          "Sign in to Marginal to keep your library, reading position and notes in sync across every device.",
       },
-      { property: "og:title", content: "Marginal — your reading room" },
+      { property: "og:title", content: "Sign in to Marginal" },
       {
         property: "og:description",
-        content: "A reading room, not a feed. Paste a link, keep the story.",
+        content: "A reading room, not a feed. Sign in to carry your place across devices.",
       },
     ],
   }),
-  component: Home,
+  component: AuthScreen,
 });
 
-function Home() {
-  const books = useLibrary();
+function AuthScreen() {
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) navigate({ to: "/library", replace: true });
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (session) navigate({ to: "/library", replace: true });
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [navigate]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: window.location.origin },
+        });
+        if (error) throw error;
+        if (!data.session) setNote("Check your email to confirm your account.");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function google() {
+    setError(null);
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+    });
+    if (result.error) {
+      setError("Google sign-in failed. Please try again.");
+      return;
+    }
+    if (result.redirected) return;
+  }
 
   return (
-    <main className="min-h-screen bg-paper font-body text-ink">
-      <section className="mx-auto max-w-[960px] px-5 pt-10 pb-8 sm:px-6 sm:pt-12">
-        <div className="grid animate-fade-up grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-          <div className="min-w-0">
+    <main className="flex min-h-screen items-center justify-center bg-paper px-5 py-10 font-body text-ink">
+      <div className="w-full max-w-[400px] animate-fade-up">
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
             <p className="label text-tint">Marginal</p>
-            <h1 className="mt-2 text-balance font-display text-3xl tracking-tight sm:text-4xl md:text-5xl">
+            <h1 className="mt-2 text-balance font-display text-3xl tracking-tight sm:text-4xl">
               A reading room, not a feed.
             </h1>
-            <p className="mt-3 max-w-[46ch] text-pretty text-[15px] text-ink-soft">
-              Paste a link. Marginal strips everything that isn't the story, then sets it exactly
-              like a well-worn paperback you'd keep.
+            <p className="mt-3 text-pretty text-[15px] text-ink-soft">
+              Sign in to keep your library, your place in every book, and your notes together on
+              every device.
             </p>
           </div>
           <ThemeToggle />
         </div>
 
-
-        <form
-          onSubmit={(e) => e.preventDefault()}
-          className="mt-9 flex animate-fade-up items-center gap-3 rounded-xl border border-line bg-paper-deep px-4 py-3.5 [animation-delay:120ms]"
+        <button
+          onClick={google}
+          className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-paper-deep px-4 py-3 text-sm font-medium transition-colors hover:border-inkline"
         >
-          <span className="font-mono text-sm text-tint">⌘</span>
+          <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
+            <path
+              fill="#4285F4"
+              d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.7v3h3.9c2.3-2.1 3.5-5.2 3.5-8.9Z"
+            />
+            <path
+              fill="#34A853"
+              d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3c-1 .7-2.4 1.1-4 1.1-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24Z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M5.4 14.3a7.2 7.2 0 0 1 0-4.6V6.6H1.4a12 12 0 0 0 0 10.8l4-3.1Z"
+            />
+            <path
+              fill="#EA4335"
+              d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.4 6.6l4 3.1C6.3 6.9 8.9 4.8 12 4.8Z"
+            />
+          </svg>
+          Continue with Google
+        </button>
+
+        <div className="my-5 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-soft">
+          <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
+        </div>
+
+        <form onSubmit={submit} className="space-y-3">
           <input
-            className="flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-soft/60"
-            placeholder="Paste a chapter or table-of-contents link…"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="w-full rounded-xl border border-line bg-paper-deep px-4 py-3 text-[15px] outline-none transition-colors focus:border-inkline placeholder:text-ink-soft/60"
           />
-          <span className="hidden font-mono text-[10px] tracking-[0.2em] text-inkline md:block">
-            LINK
-          </span>
-          <button className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-colors hover:bg-ink/80">
-            Add
+          <input
+            type="password"
+            required
+            minLength={6}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            className="w-full rounded-xl border border-line bg-paper-deep px-4 py-3 text-[15px] outline-none transition-colors focus:border-inkline placeholder:text-ink-soft/60"
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-xl bg-ink px-5 py-3 text-sm font-medium text-paper transition-colors hover:bg-ink/80 disabled:opacity-60"
+          >
+            {busy ? "One moment…" : mode === "signin" ? "Sign in" : "Create account"}
           </button>
         </form>
-      </section>
 
-      <section className="mx-auto max-w-[960px] px-6 py-10">
-        <div className="flex items-baseline justify-between border-t border-line pt-5">
-          <h2 className="label text-tint">(a) Continue reading</h2>
-          <span className="font-mono text-[11px] text-ink-soft">3 in progress</span>
-        </div>
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          {books.map((b, i) => (
-            <Link
-              key={b.slug}
-              to="/read/$slug"
-              params={{ slug: b.slug }}
-              className="animate-fade-up rounded-xl border border-line bg-paper-deep/40 p-4 transition-colors hover:border-inkline"
-              style={{ animationDelay: `${160 + i * 70}ms` }}
-            >
-              <div className="flex gap-4">
-                <CoverPlate className="size-12 shrink-0" />
-                <div className="min-w-0">
-                  <p className="truncate font-display text-lg leading-tight">{b.title}</p>
-                  <p className="truncate text-xs text-ink-soft">{b.author}</p>
-                  <div className="mt-3 h-1 overflow-hidden rounded-full bg-ink/10">
-                    <div className="h-full bg-pencil" style={{ width: `${b.progress}%` }} />
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center justify-between font-mono text-[10px] text-ink-soft">
-                <span>
-                  Ch. {b.currentChapter} / {b.currentChapter + 8} · {b.progress}%
-                </span>
-                <span className="text-tint">{b.lastRead}</span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+        {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+        {note && <p className="mt-3 text-sm text-ink-soft">{note}</p>}
 
-      <section className="mx-auto max-w-[960px] border-t border-line px-6 py-10">
-        <div className="flex items-baseline justify-between">
-          <h2 className="label text-tint">(b) The shelf</h2>
-          <div className="flex gap-2 font-mono text-[10px] text-ink-soft">
-            <span className="rounded-full border border-inkline px-2.5 py-1 text-ink">All</span>
-            <span className="rounded-full border border-line px-2.5 py-1">Series</span>
-            <span className="rounded-full border border-line px-2.5 py-1">Tags</span>
-          </div>
-        </div>
-        <p className="mt-4 font-mono text-[11px] text-ink-soft">
-          Series · {shelfSeries.name} — {shelfSeries.volumes.length} volumes
+        <p className="mt-5 text-center font-mono text-[11px] text-ink-soft">
+          {mode === "signin" ? "New to Marginal?" : "Already have an account?"}{" "}
+          <button
+            onClick={() => {
+              setMode(mode === "signin" ? "signup" : "signin");
+              setError(null);
+              setNote(null);
+            }}
+            className="text-tint underline underline-offset-4"
+          >
+            {mode === "signin" ? "Create one" : "Sign in"}
+          </button>
         </p>
-        <div className="mt-3 grid gap-4 sm:grid-cols-3">
-          {shelfSeries.volumes.map((v, i) => (
-            <Link
-              key={v.slug}
-              to="/book/$slug"
-              params={{ slug: v.slug }}
-              className="animate-fade-up rounded-xl border border-line bg-paper-deep/30 p-3 transition-colors hover:border-inkline"
-              style={{ animationDelay: `${180 + i * 70}ms` }}
-            >
-              <CoverPlate className="aspect-[3/4] w-full" />
-              <p className="mt-3 font-display text-base leading-tight">{v.title}</p>
-              <p className="text-xs text-ink-soft">
-                {v.volume} · {shelfSeries.name}
-              </p>
-            </Link>
-          ))}
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2 font-mono text-[10px] text-ink-soft">
-          {allTags.map((t) => (
-            <span key={t} className="rounded-full border border-line px-2.5 py-1">
-              {t}
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-[960px] border-t border-line px-6 py-10">
-        <div className="flex items-baseline justify-between">
-          <h2 className="label text-tint">(c) In the works</h2>
-          <span className="font-mono text-[10px] text-ink-soft">roadmap</span>
-        </div>
-        <div className="mt-5 grid gap-x-8 gap-y-5 sm:grid-cols-2">
-          {[
-            ["Extraction", "Readability parsing, next-chapter following, index detection, polite crawl, quality flags."],
-            ["Library", "Editable title, author, cover and chapter names, with revert-to-scraped. Series and tags."],
-            ["Reader", "Themes, typography controls, in-book search, highlights, read-aloud, reading stats."],
-            ["Sync", "Optional account. Guest mode by default; sign in to carry progress across devices."],
-            ["Updates", "Subscribe to ongoing novels and get told when a new chapter lands."],
-            ["Export", "EPUB, PDF, Markdown and MOBI, using your edited metadata and embedded illustrations."],
-          ].map(([h, d]) => (
-            <div key={h} className="border-t border-line pt-4">
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-tint">{h}</p>
-              <p className="mt-2 text-sm leading-relaxed text-ink-soft">{d}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <footer className="mx-auto max-w-[960px] border-t border-line px-6 py-8 font-mono text-[10px] text-ink-soft">
-        Marginal · paste a link, keep the story
-      </footer>
+      </div>
     </main>
   );
 }
