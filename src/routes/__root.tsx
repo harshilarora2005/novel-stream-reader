@@ -12,7 +12,6 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { hydrateSettings } from "../lib/settings";
-import { hydrateLibrary } from "../lib/store";
 import { PrefsSync } from "../components/PrefsSync";
 
 
@@ -133,7 +132,6 @@ function RootComponent() {
 
   useEffect(() => {
     hydrateSettings();
-    hydrateLibrary();
   }, []);
 
   return (
