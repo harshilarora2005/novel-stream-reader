@@ -44,7 +44,6 @@ const prefsSchema = z.object({
 
 export type PrefsData = z.infer<typeof prefsSchema>;
 
-const MAX_CHAPTERS = 60;
 const DELAY_MS = 450;
 
 export const listBooks = createServerFn({ method: "GET" })
@@ -122,7 +121,7 @@ export const importUrl = createServerFn({ method: "POST" })
 
     if (isIndex) {
       mode = "index";
-      for (const l of links.slice(0, MAX_CHAPTERS)) targets.push(l);
+      for (const l of links) targets.push(l);
     } else {
       targets.push({ url: first.finalUrl });
     }
@@ -153,7 +152,7 @@ export const importUrl = createServerFn({ method: "POST" })
       collected.push(selfExtract);
       let cursor = findNextLink(first.html, first.finalUrl);
       const seen = new Set([first.finalUrl]);
-      while (cursor && collected.length < MAX_CHAPTERS && !seen.has(cursor)) {
+      while (cursor && !seen.has(cursor)) {
         seen.add(cursor);
         await sleep(DELAY_MS);
         try {
