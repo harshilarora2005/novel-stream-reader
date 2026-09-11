@@ -20,6 +20,7 @@ export type BookRow = {
   updating: boolean;
   current_chapter: number;
   progress: number;
+  scroll_pos: number;
   last_read_at: string | null;
 };
 
@@ -235,6 +236,7 @@ export const updateBookMeta = createServerFn({ method: "POST" })
           tags: z.array(z.string()).optional(),
           current_chapter: z.number().optional(),
           progress: z.number().optional(),
+          scroll_pos: z.number().optional(),
           last_read_at: z.string().nullable().optional(),
         }),
       })
