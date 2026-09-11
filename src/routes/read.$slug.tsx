@@ -106,24 +106,32 @@ function Reader() {
     [chapterQuery.data],
   );
 
-  // Save reading position.
+  // Save reading position — forward only, so re-reading an earlier chapter
+  // never moves your saved place backwards. The ref tracks the furthest
+  // chapter reached this session, since the cached book row can be stale.
+  const furthest = useRef(0);
+  useEffect(() => {
+    if (book) furthest.current = Math.max(furthest.current, book.current_chapter);
+  }, [book]);
   useEffect(() => {
     if (!book || !current) return;
-    const pct = chapters.length ? Math.round(((index + 1) / chapters.length) * 100) : 0;
     const t = setTimeout(() => {
+      void markChapter({ data: { id: current.id, read: true } }).catch(() => {});
+      if (current.n < furthest.current) return;
+      furthest.current = current.n;
+      const pct = chapters.length ? Math.round(((index + 1) / chapters.length) * 100) : 0;
       void saveMeta({
         data: {
           slug,
           patch: {
             current_chapter: current.n,
-            progress: pct,
+            progress: Math.max(pct, book.progress),
             last_read_at: new Date().toISOString(),
           },
         },
       })
         .then(() => qc.invalidateQueries({ queryKey: ["books"] }))
         .catch(() => {});
-      void markChapter({ data: { id: current.id, read: true } }).catch(() => {});
     }, 1200);
     return () => clearTimeout(t);
   }, [book, current, index, chapters.length, slug, saveMeta, markChapter, qc]);
