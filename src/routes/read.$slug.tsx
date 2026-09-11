@@ -95,7 +95,22 @@ function Reader() {
     queryKey: ["chapter", book?.id, current?.n],
     queryFn: () => fetchChapter({ data: { bookId: book!.id, n: current!.n } }),
     enabled: Boolean(book && current),
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
   });
+
+  // Warm the neighbouring chapters so turning the page is instant.
+  useEffect(() => {
+    if (!book || chapters.length === 0) return;
+    const neighbours = [chapters[index + 1], chapters[index - 1]].filter(Boolean);
+    for (const c of neighbours) {
+      void qc.prefetchQuery({
+        queryKey: ["chapter", book.id, c!.n],
+        queryFn: () => fetchChapter({ data: { bookId: book.id, n: c!.n } }),
+        staleTime: 30 * 60 * 1000,
+      });
+    }
+  }, [book, chapters, index, qc, fetchChapter]);
 
   const paragraphs = useMemo(
     () =>
