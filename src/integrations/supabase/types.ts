@@ -28,6 +28,7 @@ export type Database = {
           scraped_author: string | null
           scraped_cover_url: string | null
           scraped_title: string | null
+          scroll_pos: number
           series: string | null
           slug: string
           source_url: string
@@ -51,6 +52,7 @@ export type Database = {
           scraped_author?: string | null
           scraped_cover_url?: string | null
           scraped_title?: string | null
+          scroll_pos?: number
           series?: string | null
           slug: string
           source_url: string
@@ -74,6 +76,7 @@ export type Database = {
           scraped_author?: string | null
           scraped_cover_url?: string | null
           scraped_title?: string | null
+          scroll_pos?: number
           series?: string | null
           slug?: string
           source_url?: string

@@ -13,6 +13,8 @@ import {
   ChevronRight,
   Trash2,
   X,
+  CheckCircle2,
+  Circle,
 } from "lucide-react";
 import {
   getBook,
@@ -95,7 +97,22 @@ function Reader() {
     queryKey: ["chapter", book?.id, current?.n],
     queryFn: () => fetchChapter({ data: { bookId: book!.id, n: current!.n } }),
     enabled: Boolean(book && current),
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
   });
+
+  // Warm the neighbouring chapters so turning the page is instant.
+  useEffect(() => {
+    if (!book || chapters.length === 0) return;
+    const neighbours = [chapters[index + 1], chapters[index - 1]].filter(Boolean);
+    for (const c of neighbours) {
+      void qc.prefetchQuery({
+        queryKey: ["chapter", book.id, c!.n],
+        queryFn: () => fetchChapter({ data: { bookId: book.id, n: c!.n } }),
+        staleTime: 30 * 60 * 1000,
+      });
+    }
+  }, [book, chapters, index, qc, fetchChapter]);
 
   const paragraphs = useMemo(
     () =>
@@ -106,35 +123,64 @@ function Reader() {
     [chapterQuery.data],
   );
 
-  // Save reading position — forward only, so re-reading an earlier chapter
-  // never moves your saved place backwards. The ref tracks the furthest
-  // chapter reached this session, since the cached book row can be stale.
-  const furthest = useRef(0);
+  // Restore the exact place in the page when reopening the last-read chapter.
+  const restored = useRef(false);
   useEffect(() => {
-    if (book) furthest.current = Math.max(furthest.current, book.current_chapter);
-  }, [book]);
+    if (restored.current || !book || !current || chapterQuery.isLoading) return;
+    restored.current = true;
+    if (current.n !== book.current_chapter || book.scroll_pos <= 0) return;
+    const frac = book.scroll_pos;
+    requestAnimationFrame(() => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      if (max > 0) window.scrollTo({ top: frac * max });
+    });
+  }, [book, current, chapterQuery.isLoading]);
+
+  // Track how far down the chapter the reader is, without re-rendering.
+  const scrollFrac = useRef(0);
+  useEffect(() => {
+    const onScroll = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      scrollFrac.current = max > 0 ? Math.min(1, window.scrollY / max) : 0;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Save the last chapter opened (not the furthest reached) plus the line
+  // you stopped on, so reopening lands exactly where you left off.
   useEffect(() => {
     if (!book || !current) return;
-    const t = setTimeout(() => {
-      void markChapter({ data: { id: current.id, read: true } }).catch(() => {});
-      if (current.n < furthest.current) return;
-      furthest.current = current.n;
+    const push = () => {
       const pct = chapters.length ? Math.round(((index + 1) / chapters.length) * 100) : 0;
       void saveMeta({
         data: {
           slug,
           patch: {
             current_chapter: current.n,
-            progress: Math.max(pct, book.progress),
+            progress: pct,
+            scroll_pos: scrollFrac.current,
             last_read_at: new Date().toISOString(),
           },
         },
-      })
-        .then(() => qc.invalidateQueries({ queryKey: ["books"] }))
+      }).catch(() => {});
+    };
+    const t = setTimeout(() => {
+      void markChapter({ data: { id: current.id, read: true } })
+        .then(() => qc.invalidateQueries({ queryKey: ["book", slug] }))
         .catch(() => {});
+      push();
     }, 1200);
-    return () => clearTimeout(t);
-  }, [book, current, index, chapters.length, slug, saveMeta, markChapter, qc]);
+    const beat = setInterval(push, 15000);
+    const onLeave = () => push();
+    window.addEventListener("pagehide", onLeave);
+    return () => {
+      clearTimeout(t);
+      clearInterval(beat);
+      window.removeEventListener("pagehide", onLeave);
+      push();
+    };
+  }, [book?.id, current?.id, index, chapters.length, slug, saveMeta, markChapter, qc]);
 
   // Stop speech whenever the chapter changes or the view unmounts.
   useEffect(() => {
@@ -375,7 +421,7 @@ function Reader() {
           {chapters.map((c, i) => (
             <div
               key={c.id}
-              className={`group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-3 py-2.5 ${
+              className={`group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg px-3 py-2.5 ${
                 i === index ? "bg-pencil-soft/50" : "hover:bg-paper-deep"
               }`}
             >
@@ -386,11 +432,27 @@ function Reader() {
                 }}
                 className="min-w-0 text-left"
               >
-                <span className="block truncate text-sm">{c.title}</span>
+                <span className={`block truncate text-sm ${c.read ? "text-ink-soft" : ""}`}>
+                  {c.title}
+                </span>
                 <span className="font-mono text-[10px] text-ink-soft">
                   {String(c.n).padStart(2, "0")} · {c.words.toLocaleString()} words
+                  {c.read ? " · read" : ""}
                   {c.flagged ? " · check parse" : ""}
                 </span>
+              </button>
+              <button
+                onClick={async () => {
+                  await markChapter({ data: { id: c.id, read: !c.read } });
+                  await qc.invalidateQueries({ queryKey: ["book", slug] });
+                }}
+                aria-label={c.read ? `Mark ${c.title} unread` : `Mark ${c.title} read`}
+                title={c.read ? "Mark unread" : "Mark read"}
+                className={`shrink-0 rounded-md p-1.5 transition-colors hover:bg-paper-deep ${
+                  c.read ? "text-pencil" : "text-ink-soft opacity-60 hover:opacity-100"
+                }`}
+              >
+                {c.read ? <CheckCircle2 className="size-4" /> : <Circle className="size-4" />}
               </button>
               <button
                 onClick={async () => {

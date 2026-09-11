@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Trash2, Loader2 } from "lucide-react";
+import { Trash2, Loader2, CheckCircle2, Circle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -69,7 +69,8 @@ function BookDetail() {
   });
 
   const chapterMutation = useMutation({
-    mutationFn: (v: { id: string; title: string }) => saveChapter({ data: v }),
+    mutationFn: (v: { id: string; title?: string; read?: boolean }) => saveChapter({ data: v }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["book", slug] }),
   });
 
   const removeChapterMutation = useMutation({
@@ -276,6 +277,16 @@ function BookDetail() {
                     className="min-w-0 truncate border-b border-transparent bg-transparent outline-none focus:border-inkline"
                   />
                   <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => chapterMutation.mutate({ id: c.id, read: !c.read })}
+                      aria-label={c.read ? `Mark ${c.title} unread` : `Mark ${c.title} read`}
+                      title={c.read ? "Mark unread" : "Mark read"}
+                      className={`rounded-md p-1 transition-colors hover:bg-paper-deep ${
+                        c.read ? "text-pencil" : "text-ink-soft opacity-60 hover:opacity-100"
+                      }`}
+                    >
+                      {c.read ? <CheckCircle2 className="size-4" /> : <Circle className="size-4" />}
+                    </button>
                     <span
                       className={`font-mono text-[10px] ${
                         c.flagged ? "text-destructive" : "text-ink-soft"
