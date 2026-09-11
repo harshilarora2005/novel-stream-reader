@@ -69,7 +69,8 @@ function BookDetail() {
   });
 
   const chapterMutation = useMutation({
-    mutationFn: (v: { id: string; title: string }) => saveChapter({ data: v }),
+    mutationFn: (v: { id: string; title?: string; read?: boolean }) => saveChapter({ data: v }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["book", slug] }),
   });
 
   const removeChapterMutation = useMutation({
