@@ -13,6 +13,8 @@ import {
   ChevronRight,
   Trash2,
   X,
+  CheckCircle2,
+  Circle,
 } from "lucide-react";
 import {
   getBook,
@@ -419,7 +421,7 @@ function Reader() {
           {chapters.map((c, i) => (
             <div
               key={c.id}
-              className={`group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-3 py-2.5 ${
+              className={`group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg px-3 py-2.5 ${
                 i === index ? "bg-pencil-soft/50" : "hover:bg-paper-deep"
               }`}
             >
@@ -430,11 +432,27 @@ function Reader() {
                 }}
                 className="min-w-0 text-left"
               >
-                <span className="block truncate text-sm">{c.title}</span>
+                <span className={`block truncate text-sm ${c.read ? "text-ink-soft" : ""}`}>
+                  {c.title}
+                </span>
                 <span className="font-mono text-[10px] text-ink-soft">
                   {String(c.n).padStart(2, "0")} · {c.words.toLocaleString()} words
+                  {c.read ? " · read" : ""}
                   {c.flagged ? " · check parse" : ""}
                 </span>
+              </button>
+              <button
+                onClick={async () => {
+                  await markChapter({ data: { id: c.id, read: !c.read } });
+                  await qc.invalidateQueries({ queryKey: ["book", slug] });
+                }}
+                aria-label={c.read ? `Mark ${c.title} unread` : `Mark ${c.title} read`}
+                title={c.read ? "Mark unread" : "Mark read"}
+                className={`shrink-0 rounded-md p-1.5 transition-colors hover:bg-paper-deep ${
+                  c.read ? "text-pencil" : "text-ink-soft opacity-60 hover:opacity-100"
+                }`}
+              >
+                {c.read ? <CheckCircle2 className="size-4" /> : <Circle className="size-4" />}
               </button>
               <button
                 onClick={async () => {
