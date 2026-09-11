@@ -121,35 +121,64 @@ function Reader() {
     [chapterQuery.data],
   );
 
-  // Save reading position — forward only, so re-reading an earlier chapter
-  // never moves your saved place backwards. The ref tracks the furthest
-  // chapter reached this session, since the cached book row can be stale.
-  const furthest = useRef(0);
+  // Restore the exact place in the page when reopening the last-read chapter.
+  const restored = useRef(false);
   useEffect(() => {
-    if (book) furthest.current = Math.max(furthest.current, book.current_chapter);
-  }, [book]);
+    if (restored.current || !book || !current || chapterQuery.isLoading) return;
+    restored.current = true;
+    if (current.n !== book.current_chapter || book.scroll_pos <= 0) return;
+    const frac = book.scroll_pos;
+    requestAnimationFrame(() => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      if (max > 0) window.scrollTo({ top: frac * max });
+    });
+  }, [book, current, chapterQuery.isLoading]);
+
+  // Track how far down the chapter the reader is, without re-rendering.
+  const scrollFrac = useRef(0);
+  useEffect(() => {
+    const onScroll = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      scrollFrac.current = max > 0 ? Math.min(1, window.scrollY / max) : 0;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Save the last chapter opened (not the furthest reached) plus the line
+  // you stopped on, so reopening lands exactly where you left off.
   useEffect(() => {
     if (!book || !current) return;
-    const t = setTimeout(() => {
-      void markChapter({ data: { id: current.id, read: true } }).catch(() => {});
-      if (current.n < furthest.current) return;
-      furthest.current = current.n;
+    const push = () => {
       const pct = chapters.length ? Math.round(((index + 1) / chapters.length) * 100) : 0;
       void saveMeta({
         data: {
           slug,
           patch: {
             current_chapter: current.n,
-            progress: Math.max(pct, book.progress),
+            progress: pct,
+            scroll_pos: scrollFrac.current,
             last_read_at: new Date().toISOString(),
           },
         },
-      })
-        .then(() => qc.invalidateQueries({ queryKey: ["books"] }))
+      }).catch(() => {});
+    };
+    const t = setTimeout(() => {
+      void markChapter({ data: { id: current.id, read: true } })
+        .then(() => qc.invalidateQueries({ queryKey: ["book", slug] }))
         .catch(() => {});
+      push();
     }, 1200);
-    return () => clearTimeout(t);
-  }, [book, current, index, chapters.length, slug, saveMeta, markChapter, qc]);
+    const beat = setInterval(push, 15000);
+    const onLeave = () => push();
+    window.addEventListener("pagehide", onLeave);
+    return () => {
+      clearTimeout(t);
+      clearInterval(beat);
+      window.removeEventListener("pagehide", onLeave);
+      push();
+    };
+  }, [book?.id, current?.id, index, chapters.length, slug, saveMeta, markChapter, qc]);
 
   // Stop speech whenever the chapter changes or the view unmounts.
   useEffect(() => {
