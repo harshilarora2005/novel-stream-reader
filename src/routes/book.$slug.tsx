@@ -431,7 +431,7 @@ function BookDetail() {
             </div>
             <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
               <span className="font-mono text-[10px] text-ink-soft">
-                Rename inline · trash to remove
+                Rename inline · arrows reorder · trash removes
               </span>
               <Link
                 to="/read/$slug"
