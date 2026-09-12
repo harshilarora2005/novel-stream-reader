@@ -51,6 +51,7 @@ function BookDetail() {
   const [confirm, setConfirm] = useState<string | null>(null);
   const [busyExport, setBusyExport] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [chapterUrl, setChapterUrl] = useState("");
 
   const fetchBook = useServerFn(getBook);
   const saveMeta = useServerFn(updateBookMeta);
@@ -58,6 +59,9 @@ function BookDetail() {
   const dropChapter = useServerFn(deleteChapter);
   const dropBook = useServerFn(deleteBook);
   const fetchExport = useServerFn(getBookForExport);
+  const addChapter = useServerFn(addChapterUrl);
+  const fetchMore = useServerFn(fetchMoreChapters);
+  const shiftChapter = useServerFn(moveChapter);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
