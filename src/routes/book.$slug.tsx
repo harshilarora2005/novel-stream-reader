@@ -18,6 +18,9 @@ import {
   deleteChapter,
   deleteBook,
   getBookForExport,
+  addChapterUrl,
+  fetchMoreChapters,
+  moveChapter,
 } from "@/lib/books.functions";
 import { exportEpub, exportMarkdown, exportPdf, exportText } from "@/lib/export";
 import { supabase } from "@/integrations/supabase/client";
