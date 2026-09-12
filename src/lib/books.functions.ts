@@ -221,6 +221,157 @@ export const importUrl = createServerFn({ method: "POST" })
     return { slug: inserted.slug, chapters: rows.length, mode };
   });
 
+/** Append one chapter from a single chapter link. */
+export const addChapterUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { slug: string; url: string }) =>
+    z.object({ slug: z.string(), url: z.string().url() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { fetchPage, extractFromHtml, findNextLink } = await import("./extract.server");
+
+    const { data: book } = await context.supabase
+      .from("books")
+      .select("id")
+      .eq("slug", data.slug)
+      .maybeSingle();
+    if (!book) throw new Error("Book not found.");
+
+    const { data: existing } = await context.supabase
+      .from("chapters")
+      .select("n,url")
+      .eq("book_id", book.id)
+      .order("n", { ascending: false });
+    const rows = existing ?? [];
+    if (rows.some((c: { url: string | null }) => c.url === data.url)) {
+      throw new Error("That chapter is already in this book.");
+    }
+
+    const page = await fetchPage(data.url);
+    const ex = extractFromHtml(page.html, page.finalUrl);
+    if (ex.words < 60) throw new Error("Nothing readable was found on that page.");
+
+    const n = (rows[0]?.n ?? 0) + 1;
+    const { error } = await context.supabase.from("chapters").insert({
+      book_id: book.id,
+      user_id: context.userId,
+      n,
+      title: ex.title || `Chapter ${n}`,
+      content: ex.paragraphs.join("\n\n"),
+      words: ex.words,
+      url: page.finalUrl,
+      flagged: ex.flagged,
+    });
+    if (error) throw new Error(error.message);
+
+    const next = findNextLink(page.html, page.finalUrl);
+    await context.supabase
+      .from("books")
+      .update({ next_url: next, updating: Boolean(next) } as never)
+      .eq("id", book.id);
+
+    return { added: 1, title: ex.title, next: Boolean(next) };
+  });
+
+/** Follow the stored "next chapter" link to pull in newly published chapters. */
+export const fetchMoreChapters = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { slug: string; limit?: number }) =>
+    z.object({ slug: z.string(), limit: z.number().min(1).max(50).optional() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { fetchPage, extractFromHtml, findNextLink, sleep } = await import("./extract.server");
+
+    const { data: book } = await context.supabase
+      .from("books")
+      .select("id,next_url")
+      .eq("slug", data.slug)
+      .maybeSingle();
+    if (!book) throw new Error("Book not found.");
+    if (!book.next_url) return { added: 0, next: false };
+
+    const { data: existing } = await context.supabase
+      .from("chapters")
+      .select("n,url")
+      .eq("book_id", book.id)
+      .order("n", { ascending: false });
+    const rows = existing ?? [];
+    const seen = new Set(
+      rows.map((c: { url: string | null }) => c.url).filter(Boolean) as string[],
+    );
+    let n = (rows[0]?.n ?? 0) + 1;
+
+    let cursor: string | null = book.next_url;
+    let added = 0;
+    const limit = data.limit ?? 25;
+
+    while (cursor && !seen.has(cursor) && added < limit) {
+      seen.add(cursor);
+      try {
+        const page = await fetchPage(cursor);
+        const ex = extractFromHtml(page.html, page.finalUrl);
+        if (ex.words > 60) {
+          const { error } = await context.supabase.from("chapters").insert({
+            book_id: book.id,
+            user_id: context.userId,
+            n,
+            title: ex.title || `Chapter ${n}`,
+            content: ex.paragraphs.join("\n\n"),
+            words: ex.words,
+            url: page.finalUrl,
+            flagged: ex.flagged,
+          });
+          if (error) throw new Error(error.message);
+          n += 1;
+          added += 1;
+        }
+        cursor = findNextLink(page.html, page.finalUrl);
+      } catch {
+        break;
+      }
+      await sleep(DELAY_MS);
+    }
+
+    await context.supabase
+      .from("books")
+      .update({ next_url: cursor, updating: Boolean(cursor) } as never)
+      .eq("id", book.id);
+
+    return { added, next: Boolean(cursor) };
+  });
+
+/** Swap a chapter with its neighbour, keeping the unique ordering intact. */
+export const moveChapter = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string; direction: "up" | "down" }) =>
+    z.object({ id: z.string(), direction: z.enum(["up", "down"]) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: chapter } = await context.supabase
+      .from("chapters")
+      .select("id,book_id,n")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!chapter) throw new Error("Chapter not found.");
+
+    const up = data.direction === "up";
+    const { data: neighbours } = await context.supabase
+      .from("chapters")
+      .select("id,n")
+      .eq("book_id", chapter.book_id)
+      [up ? "lt" : "gt"]("n", chapter.n)
+      .order("n", { ascending: !up })
+      .limit(1);
+    const other = (neighbours ?? [])[0];
+    if (!other) return { ok: true, moved: false };
+
+    // Park one row on a free negative slot so the (book_id, n) pair stays unique.
+    await context.supabase.from("chapters").update({ n: -1 } as never).eq("id", chapter.id);
+    await context.supabase.from("chapters").update({ n: chapter.n } as never).eq("id", other.id);
+    await context.supabase.from("chapters").update({ n: other.n } as never).eq("id", chapter.id);
+    return { ok: true, moved: true };
+  });
+
 export const updateBookMeta = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { slug: string; patch: Record<string, unknown> }) =>
