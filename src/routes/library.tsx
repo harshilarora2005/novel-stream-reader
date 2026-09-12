@@ -60,6 +60,8 @@ function Library() {
     queryKey: ["books"],
     queryFn: () => fetchBooks(),
     enabled: ready,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const importer = useMutation({
@@ -81,7 +83,12 @@ function Library() {
   if (!ready) return <main className="min-h-screen bg-paper" />;
 
   const books = booksQuery.data ?? [];
-  const inProgress = books.filter((b) => b.progress > 0 && b.progress < 100);
+  // Anything you've opened belongs here, newest first — even a book you just
+  // started or one you've finished but might revisit.
+  const inProgress = books
+    .filter((b) => b.last_read_at !== null || b.current_chapter > 0)
+    .sort((a, b) => (b.last_read_at ?? "").localeCompare(a.last_read_at ?? ""))
+    .slice(0, 6);
   const series = seriesGroups(books);
   const tags = [...new Set(books.flatMap((b) => b.tags))];
 
