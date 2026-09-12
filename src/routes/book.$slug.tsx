@@ -300,18 +300,85 @@ function BookDetail() {
               <p className="font-mono text-[10px] tracking-[0.2em] text-tint">CHAPTERS</p>
               <span className="font-mono text-[10px] text-ink-soft">{chapters.length}</span>
             </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const v = chapterUrl.trim();
+                if (v) addChapterMutation.mutate(v);
+              }}
+              className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2.5"
+            >
+              <input
+                value={chapterUrl}
+                onChange={(e) => setChapterUrl(e.target.value)}
+                disabled={addChapterMutation.isPending}
+                placeholder="Paste one chapter link…"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-soft/60"
+              />
+              <button
+                disabled={addChapterMutation.isPending}
+                className="flex shrink-0 items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-paper disabled:opacity-60"
+              >
+                {addChapterMutation.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Plus className="size-3.5" />
+                )}
+                Add chapter
+              </button>
+            </form>
+            {addChapterMutation.isError && (
+              <p className="mb-3 text-xs text-destructive">
+                {(addChapterMutation.error as Error).message || "That chapter couldn't be read."}
+              </p>
+            )}
+            {book.next_url && (
+              <button
+                onClick={() => moreMutation.mutate()}
+                disabled={moreMutation.isPending}
+                className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg border border-line px-3 py-2 font-mono text-[10px] uppercase tracking-[0.15em] text-ink-soft hover:border-inkline hover:text-ink disabled:opacity-60"
+              >
+                {moreMutation.isPending && <Loader2 className="size-3 animate-spin" />}
+                {moreMutation.isPending ? "Following next chapters…" : "Fetch newer chapters"}
+              </button>
+            )}
+            {moreMutation.isSuccess && (
+              <p className="mb-3 font-mono text-[10px] text-ink-soft">
+                {moreMutation.data.added > 0
+                  ? `Added ${moreMutation.data.added} chapter${moreMutation.data.added === 1 ? "" : "s"}.`
+                  : "No new chapters yet."}
+              </p>
+            )}
+
             <div className="max-h-[60vh] divide-y divide-line overflow-y-auto text-sm">
-              {chapters.map((c) => (
+              {chapters.map((c, i) => (
                 <div
                   key={c.id}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2.5"
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1.5 py-2.5 sm:flex-nowrap"
                 >
                   <input
                     defaultValue={c.title}
                     onBlur={(e) => chapterMutation.mutate({ id: c.id, title: e.target.value })}
-                    className="min-w-0 truncate border-b border-transparent bg-transparent outline-none focus:border-inkline"
+                    className="min-w-0 flex-1 basis-full truncate border-b border-transparent bg-transparent outline-none focus:border-inkline sm:basis-auto"
                   />
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      onClick={() => moveMutation.mutate({ id: c.id, direction: "up" })}
+                      disabled={i === 0 || moveMutation.isPending}
+                      aria-label={`Move ${c.title} up`}
+                      className="rounded-md p-1 text-ink-soft transition-colors hover:bg-paper-deep hover:text-ink disabled:opacity-25"
+                    >
+                      <ChevronUp className="size-4" />
+                    </button>
+                    <button
+                      onClick={() => moveMutation.mutate({ id: c.id, direction: "down" })}
+                      disabled={i === chapters.length - 1 || moveMutation.isPending}
+                      aria-label={`Move ${c.title} down`}
+                      className="rounded-md p-1 text-ink-soft transition-colors hover:bg-paper-deep hover:text-ink disabled:opacity-25"
+                    >
+                      <ChevronDown className="size-4" />
+                    </button>
                     <button
                       onClick={() => chapterMutation.mutate({ id: c.id, read: !c.read })}
                       aria-label={c.read ? `Mark ${c.title} unread` : `Mark ${c.title} read`}
