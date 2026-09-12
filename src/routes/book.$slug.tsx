@@ -95,6 +95,24 @@ function BookDetail() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["book", slug] }),
   });
 
+  const addChapterMutation = useMutation({
+    mutationFn: (url: string) => addChapter({ data: { slug, url } }),
+    onSuccess: async () => {
+      setChapterUrl("");
+      await qc.invalidateQueries({ queryKey: ["book", slug] });
+    },
+  });
+
+  const moreMutation = useMutation({
+    mutationFn: () => fetchMore({ data: { slug } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["book", slug] }),
+  });
+
+  const moveMutation = useMutation({
+    mutationFn: (v: { id: string; direction: "up" | "down" }) => shiftChapter({ data: v }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["book", slug] }),
+  });
+
   const removeBookMutation = useMutation({
     mutationFn: () => dropBook({ data: { slug } }),
     onSuccess: async () => {
