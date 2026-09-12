@@ -60,6 +60,8 @@ function Library() {
     queryKey: ["books"],
     queryFn: () => fetchBooks(),
     enabled: ready,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const importer = useMutation({
