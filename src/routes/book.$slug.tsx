@@ -74,6 +74,8 @@ function BookDetail() {
     queryKey: ["book", slug],
     queryFn: () => fetchBook({ data: { slug } }),
     enabled: ready,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const metaMutation = useMutation({
