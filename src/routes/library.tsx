@@ -92,30 +92,31 @@ function Library() {
     .sort((a, b) => (b.last_read_at ?? "").localeCompare(a.last_read_at ?? ""))
     .slice(0, 6);
   const series = seriesGroups(books);
-  const tags = [...new Set(books.flatMap((b) => b.tags))];
 
   return (
     <main className="min-h-screen bg-paper font-body text-ink">
-      <section className="mx-auto max-w-[960px] px-5 pt-10 pb-8 sm:px-6 sm:pt-12">
-        <div className="grid animate-fade-up grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+      <section className="mx-auto max-w-[960px] px-5 pt-7 pb-8 sm:px-6 sm:pt-12">
+        <div className="animate-fade-up">
+          <div className="flex items-center justify-between gap-3">
+            <p className="label min-w-0 text-tint">Marginal</p>
+            <div className="flex shrink-0 items-center gap-2">
+              <ThemeToggle />
+              <button
+                onClick={signOut}
+                className="rounded-lg border border-line px-3 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-soft transition-colors hover:border-inkline hover:text-ink"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
           <div className="min-w-0">
-            <p className="label text-tint">Marginal</p>
-            <h1 className="mt-2 text-balance font-display text-3xl tracking-tight sm:text-4xl md:text-5xl">
+            <h1 className="mt-5 max-w-[16ch] text-balance font-display text-4xl tracking-tight sm:mt-3 sm:text-4xl md:text-5xl">
               A reading room, not a feed.
             </h1>
             <p className="mt-3 max-w-[46ch] text-pretty text-[15px] text-ink-soft">
               Paste a link. Marginal strips everything that isn't the story, then sets it exactly
               like a well-worn paperback you'd keep.
             </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <button
-              onClick={signOut}
-              className="rounded-lg border border-line px-3 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-soft transition-colors hover:border-inkline hover:text-ink"
-            >
-              Sign out
-            </button>
           </div>
         </div>
 
@@ -125,22 +126,24 @@ function Library() {
             const v = url.trim();
             if (v) importer.mutate(v);
           }}
-          className="mt-9 flex animate-fade-up items-center gap-3 rounded-xl border border-line bg-paper-deep px-4 py-3.5 [animation-delay:120ms]"
+          className="mt-8 grid animate-fade-up grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-line bg-paper-deep p-2 [animation-delay:120ms] sm:mt-9 sm:gap-3 sm:px-4 sm:py-3.5"
         >
-          <span className="font-mono text-sm text-tint">⌘</span>
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            disabled={importer.isPending}
-            className="flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-soft/60"
-            placeholder="Paste a chapter or table-of-contents link…"
-          />
+          <div className="flex min-w-0 items-center gap-2 pl-2 sm:gap-3 sm:pl-0">
+            <span className="shrink-0 font-mono text-sm text-tint">⌘</span>
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              disabled={importer.isPending}
+              className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-ink-soft/60 sm:text-[15px]"
+              placeholder="Paste a novel or chapter link…"
+            />
+          </div>
           <span className="hidden font-mono text-[10px] tracking-[0.2em] text-inkline md:block">
             LINK
           </span>
           <button
             disabled={importer.isPending}
-            className="flex items-center gap-2 rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-colors hover:bg-ink/80 disabled:opacity-60"
+            className="flex shrink-0 items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-paper transition-colors hover:bg-ink/80 disabled:opacity-60 sm:px-5"
           >
             {importer.isPending && <Loader2 className="size-4 animate-spin" />}
             {importer.isPending ? "Reading…" : "Add"}
@@ -158,10 +161,10 @@ function Library() {
         )}
       </section>
 
-      <section className="mx-auto max-w-[960px] px-6 py-10">
-        <div className="flex items-baseline justify-between border-t border-line pt-5">
-          <h2 className="label text-tint">(a) Continue reading</h2>
-          <span className="font-mono text-[11px] text-ink-soft">
+      <section className="mx-auto max-w-[960px] px-5 py-8 sm:px-6 sm:py-10">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 border-t border-line pt-5">
+          <h2 className="label min-w-0 text-tint">(a) Continue reading</h2>
+          <span className="shrink-0 font-mono text-[10px] text-ink-soft sm:text-[11px]">
             {inProgress.length} in progress
           </span>
         </div>
@@ -179,9 +182,9 @@ function Library() {
                 className="animate-fade-up rounded-xl border border-line bg-paper-deep/40 p-4 transition-colors hover:border-inkline"
                 style={{ animationDelay: `${160 + i * 70}ms` }}
               >
-                <div className="flex gap-4">
+                 <div className="flex min-w-0 gap-4">
                   <CoverPlate className="size-12 shrink-0" />
-                  <div className="min-w-0">
+                   <div className="min-w-0 flex-1">
                     <p className="truncate font-display text-lg leading-tight">{b.title}</p>
                     <p className="truncate text-xs text-ink-soft">{b.author}</p>
                     <div className="mt-3 h-1 overflow-hidden rounded-full bg-ink/10">
@@ -203,10 +206,10 @@ function Library() {
         )}
       </section>
 
-      <section className="mx-auto max-w-[960px] border-t border-line px-6 py-10">
-        <div className="flex items-baseline justify-between">
-          <h2 className="label text-tint">(b) The shelf</h2>
-          <span className="font-mono text-[10px] text-ink-soft">{books.length} books</span>
+      <section className="mx-auto max-w-[960px] border-t border-line px-5 py-8 sm:px-6 sm:py-10">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
+          <h2 className="label min-w-0 text-tint">(b) The shelf</h2>
+          <span className="shrink-0 font-mono text-[10px] text-ink-soft">{books.length} books</span>
         </div>
 
         {booksQuery.isLoading ? (
@@ -224,13 +227,13 @@ function Library() {
                 </p>
               </div>
             ))}
-            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+            <div className="mt-4 grid gap-4 sm:mt-3 sm:grid-cols-3">
               {books.map((b, i) => (
                 <Link
                   key={b.slug}
                   to="/book/$slug"
                   params={{ slug: b.slug }}
-                  className="animate-fade-up rounded-xl border border-line bg-paper-deep/30 p-3 transition-colors hover:border-inkline"
+                  className="grid animate-fade-up grid-cols-[88px_minmax(0,1fr)] gap-4 rounded-xl border border-line bg-paper-deep/30 p-3 transition-colors hover:border-inkline sm:block"
                   style={{ animationDelay: `${180 + i * 70}ms` }}
                 >
                   {b.cover_url ? (
@@ -238,28 +241,21 @@ function Library() {
                       src={b.cover_url}
                       alt={`Cover of ${b.title}`}
                       loading="lazy"
-                      className="aspect-[3/4] w-full rounded-md object-cover"
+                      className="aspect-[3/4] w-[88px] rounded-md object-cover sm:w-full"
                     />
                   ) : (
-                    <CoverPlate className="aspect-[3/4] w-full" />
+                    <CoverPlate className="aspect-[3/4] w-[88px] sm:w-full" />
                   )}
-                  <p className="mt-3 font-display text-base leading-tight">{b.title}</p>
-                  <p className="text-xs text-ink-soft">
-                    {b.volume ? `${b.volume} · ` : ""}
-                    {b.series ?? b.author}
-                  </p>
+                  <div className="min-w-0 self-center sm:mt-3">
+                    <p className="text-pretty font-display text-lg leading-tight sm:text-base">{b.title}</p>
+                    <p className="mt-1 truncate text-xs text-ink-soft">
+                      {b.volume ? `${b.volume} · ` : ""}
+                      {b.series ?? b.author}
+                    </p>
+                  </div>
                 </Link>
               ))}
             </div>
-            {tags.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2 font-mono text-[10px] text-ink-soft">
-                {tags.map((t) => (
-                  <span key={t} className="rounded-full border border-line px-2.5 py-1">
-                    {t}
-                  </span>
-                ))}
-              </div>
-            )}
           </>
         )}
       </section>
