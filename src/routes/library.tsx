@@ -93,6 +93,9 @@ function Library() {
     .slice(0, 6);
   const series = seriesGroups(books);
 
+  const safeProgress = (progress: number) =>
+    Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0;
+
   return (
     <main className="min-h-screen bg-paper font-body text-ink">
       <section className="mx-auto max-w-[960px] px-5 pt-7 pb-8 sm:px-6 sm:pt-12">
@@ -173,13 +176,13 @@ function Library() {
             Nothing on the go yet. Paste a link above and your first book lands here.
           </p>
         ) : (
-          <div className="mt-5 grid gap-4 sm:grid-cols-3">
+          <div className="mt-5 grid min-w-0 gap-4 sm:grid-cols-3">
             {inProgress.map((b, i) => (
               <Link
                 key={b.slug}
                 to="/read/$slug"
                 params={{ slug: b.slug }}
-                className="animate-fade-up rounded-xl border border-line bg-paper-deep/40 p-4 transition-colors hover:border-inkline"
+                className="min-w-0 max-w-full overflow-hidden animate-fade-up rounded-xl border border-line bg-paper-deep/40 p-4 transition-colors hover:border-inkline"
                 style={{ animationDelay: `${160 + i * 70}ms` }}
               >
                  <div className="flex min-w-0 gap-4">
@@ -187,16 +190,16 @@ function Library() {
                    <div className="min-w-0 flex-1">
                     <p className="truncate font-display text-lg leading-tight">{b.title}</p>
                     <p className="truncate text-xs text-ink-soft">{b.author}</p>
-                    <div className="mt-3 h-1 overflow-hidden rounded-full bg-ink/10">
-                      <div className="h-full bg-pencil" style={{ width: `${b.progress}%` }} />
+                     <div className="mt-3 h-1 max-w-full overflow-hidden rounded-full bg-ink/10">
+                       <div className="h-full bg-pencil" style={{ width: `${safeProgress(b.progress)}%` }} />
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center justify-between font-mono text-[10px] text-ink-soft">
-                  <span>
+                 <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 font-mono text-[10px] text-ink-soft">
+                   <span className="min-w-0 truncate">
                     Ch. {b.current_chapter} · {b.progress}%
                   </span>
-                  <span className="text-tint">
+                   <span className="shrink-0 whitespace-nowrap text-tint">
                     {b.last_read_at ? new Date(b.last_read_at).toLocaleDateString() : ""}
                   </span>
                 </div>
