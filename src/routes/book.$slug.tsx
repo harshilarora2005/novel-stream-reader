@@ -38,6 +38,8 @@ export const Route = createFileRoute("/book/$slug")({
       },
       { property: "og:title", content: "Book details — Marginal" },
       { property: "og:description", content: "Your metadata, your chapter list, your exports." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   ssr: false,
