@@ -41,6 +41,8 @@ export const Route = createFileRoute("/read/$slug")({
         property: "og:description",
         content: "Set like a paperback: adjustable type, four themes, saved place.",
       },
+      { property: "og:type", content: "article" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   ssr: false,

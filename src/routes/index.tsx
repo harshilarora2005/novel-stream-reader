@@ -18,6 +18,8 @@ export const Route = createFileRoute("/")({
         property: "og:description",
         content: "A reading room, not a feed. Sign in to carry your place across devices.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AuthScreen,

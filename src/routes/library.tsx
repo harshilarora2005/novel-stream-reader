@@ -22,6 +22,8 @@ export const Route = createFileRoute("/library")({
         property: "og:description",
         content: "A reading room, not a feed. Paste a link, keep the story.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   ssr: false,
