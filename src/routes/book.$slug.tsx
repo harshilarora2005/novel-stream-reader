@@ -111,7 +111,7 @@ function BookDetail() {
     };
     setDraft(next);
     setSavedDraft(next);
-  }, [q.data?.book]);
+  }, [q.dataUpdatedAt, slug]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["book", slug] });
   const detailsChanged = JSON.stringify(draft) !== JSON.stringify(savedDraft);
