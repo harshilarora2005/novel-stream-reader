@@ -340,11 +340,11 @@ export const fetchMoreChapters = createServerFn({ method: "POST" })
     return { added, next: Boolean(cursor) };
   });
 
-/** Swap a chapter with its neighbour, keeping the unique ordering intact. */
+/** Move a chapter directly to a target position, keeping the unique ordering intact. */
 export const moveChapter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { id: string; direction: "up" | "down" }) =>
-    z.object({ id: z.string(), direction: z.enum(["up", "down"]) }).parse(d),
+  .inputValidator((d: { id: string; target: number }) =>
+    z.object({ id: z.string(), target: z.number().int().min(1) }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const { data: chapter } = await context.supabase
@@ -354,22 +354,39 @@ export const moveChapter = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!chapter) throw new Error("Chapter not found.");
 
-    const up = data.direction === "up";
-    const { data: neighbours } = await context.supabase
+    const { data: chapters, error: listError } = await context.supabase
       .from("chapters")
       .select("id,n")
       .eq("book_id", chapter.book_id)
-      [up ? "lt" : "gt"]("n", chapter.n)
-      .order("n", { ascending: !up })
-      .limit(1);
-    const other = (neighbours ?? [])[0];
-    if (!other) return { ok: true, moved: false };
+      .order("n");
+    if (listError) throw new Error(listError.message);
 
-    // Park one row on a free negative slot so the (book_id, n) pair stays unique.
-    await context.supabase.from("chapters").update({ n: -1 } as never).eq("id", chapter.id);
-    await context.supabase.from("chapters").update({ n: chapter.n } as never).eq("id", other.id);
-    await context.supabase.from("chapters").update({ n: other.n } as never).eq("id", chapter.id);
-    return { ok: true, moved: true };
+    const ordered = chapters ?? [];
+    const from = ordered.findIndex((row) => row.id === data.id);
+    const to = Math.min(data.target, ordered.length) - 1;
+    if (from < 0 || from === to) return { ok: true, moved: false };
+
+    const next = [...ordered];
+    const moving = next.splice(from, 1)[0];
+    if (!moving) return { ok: true, moved: false };
+    next.splice(to, 0, moving);
+
+    // Park every row on a unique negative slot before assigning its final position.
+    for (const [index, row] of next.entries()) {
+      const { error } = await context.supabase
+        .from("chapters")
+        .update({ n: -(index + 1) } as never)
+        .eq("id", row.id);
+      if (error) throw new Error(error.message);
+    }
+    for (const [index, row] of next.entries()) {
+      const { error } = await context.supabase
+        .from("chapters")
+        .update({ n: index + 1 } as never)
+        .eq("id", row.id);
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true, moved: true, position: to + 1 };
   });
 
 export const updateBookMeta = createServerFn({ method: "POST" })

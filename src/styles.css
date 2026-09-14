@@ -6,7 +6,7 @@
 
 /*
  * Marginal design system — "small-press reader".
- * Paper-toned palette, Bodoni Moda display, Inter UI, JetBrains Mono labels.
+ * Plum Archive palette, Lora display, Nunito Sans UI, JetBrains Mono labels.
  * All colors live here as tokens. Never hardcode colors in components.
  */
 
@@ -14,15 +14,15 @@
   --radius: 0.75rem;
 
   /* Paper palette */
-  --paper: hsl(39 32% 95%);
-  --paper-deep: hsl(39 28% 90%);
-  --ink: hsl(30 22% 13%);
-  --ink-soft: hsl(30 14% 38%);
-  --line: hsl(30 22% 13% / 0.12);
-  --inkline: hsl(30 22% 13% / 0.3);
-  --pencil: hsl(26 62% 46%);
-  --pencil-soft: hsl(26 48% 90%);
-  --tint: hsl(26 30% 40%);
+  --paper: oklch(0.955 0.012 55);
+  --paper-deep: oklch(0.91 0.018 52);
+  --ink: oklch(0.29 0.035 320);
+  --ink-soft: oklch(0.48 0.026 318);
+  --line: oklch(0.29 0.035 320 / 0.13);
+  --inkline: oklch(0.29 0.035 320 / 0.32);
+  --pencil: oklch(0.49 0.105 12);
+  --pencil-soft: oklch(0.88 0.036 12);
+  --tint: oklch(0.51 0.038 145);
 
   /* shadcn semantic mapping */
   --background: var(--paper);
@@ -120,10 +120,10 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  --font-display: "Bodoni Moda", Georgia, serif;
-  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Lora", Georgia, serif;
+  --font-body: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-reading: "Bodoni Moda", Georgia, serif;
+  --font-reading: "Lora", Georgia, serif;
 
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
   --animate-fade-up: fade-up 0.7s var(--ease) both;
