@@ -2,11 +2,13 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, Search, X } from "lucide-react";
 import { listBooks, importUrl, type BookRow } from "@/lib/books.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { CoverPlate } from "@/components/CoverPlate";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/library")({
   head: () => ({
@@ -44,6 +46,8 @@ function Library() {
   const queryClient = useQueryClient();
   const [ready, setReady] = useState(false);
   const [url, setUrl] = useState("");
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"recent" | "added" | "title" | "progress">("recent");
   const fetchBooks = useServerFn(listBooks);
   const runImport = useServerFn(importUrl);
 
@@ -90,8 +94,22 @@ function Library() {
   const inProgress = books
     .filter((b) => b.last_read_at !== null || b.current_chapter > 0)
     .sort((a, b) => (b.last_read_at ?? "").localeCompare(a.last_read_at ?? ""))
-    .slice(0, 6);
-  const series = seriesGroups(books);
+    .slice(0, 2);
+  const normalizedQuery = libraryQuery.trim().toLocaleLowerCase();
+  const visibleBooks = books
+    .filter((book) => {
+      if (!normalizedQuery) return true;
+      return [book.title, book.author, book.series, book.volume]
+        .filter(Boolean)
+        .some((value) => value?.toLocaleLowerCase().includes(normalizedQuery));
+    })
+    .sort((a, b) => {
+      if (sortBy === "title") return a.title.localeCompare(b.title);
+      if (sortBy === "progress") return b.progress - a.progress;
+      if (sortBy === "added") return b.created_at.localeCompare(a.created_at);
+      return (b.last_read_at ?? b.created_at).localeCompare(a.last_read_at ?? a.created_at);
+    });
+  const series = seriesGroups(visibleBooks);
 
   const safeProgress = (progress: number) =>
     Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0;
@@ -168,7 +186,7 @@ function Library() {
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 border-t border-line pt-5">
           <h2 className="label min-w-0 text-tint">(a) Continue reading</h2>
           <span className="shrink-0 font-mono text-[10px] text-ink-soft sm:text-[11px]">
-            {inProgress.length} in progress
+            {books.filter((b) => b.last_read_at !== null || b.current_chapter > 0).length} in progress
           </span>
         </div>
         {inProgress.length === 0 ? (
@@ -176,44 +194,88 @@ function Library() {
             Nothing on the go yet. Paste a link above and your first book lands here.
           </p>
         ) : (
-          <div className="mt-5 grid min-w-0 gap-4 sm:grid-cols-3">
-            {inProgress.map((b, i) => (
-              <Link
-                key={b.slug}
-                to="/read/$slug"
-                params={{ slug: b.slug }}
-                className="min-w-0 max-w-full overflow-hidden animate-fade-up rounded-xl border border-line bg-paper-deep/40 p-4 transition-colors hover:border-inkline"
-                style={{ animationDelay: `${160 + i * 70}ms` }}
-              >
-                 <div className="flex min-w-0 gap-4">
-                  <CoverPlate className="size-12 shrink-0" />
-                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-display text-lg leading-tight">{b.title}</p>
-                    <p className="truncate text-xs text-ink-soft">{b.author}</p>
-                     <div className="mt-3 h-1 max-w-full overflow-hidden rounded-full bg-ink/10">
-                       <div className="h-full bg-pencil" style={{ width: `${safeProgress(b.progress)}%` }} />
+          <div className="mt-5 min-w-0 space-y-3">
+            {inProgress[0] && (
+              <article className="animate-fade-up overflow-hidden rounded-xl border border-inkline bg-paper-deep/60 p-5 shadow-sm">
+                <div className="flex min-w-0 items-start gap-4">
+                  {inProgress[0].cover_url ? (
+                    <img src={inProgress[0].cover_url} alt={`Cover of ${inProgress[0].title}`} className="h-20 w-14 shrink-0 rounded-md object-cover" />
+                  ) : (
+                    <CoverPlate className="h-20 w-14 shrink-0 rounded-md" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <Link to="/book/$slug" params={{ slug: inProgress[0].slug }} className="block">
+                      <h3 className="line-clamp-2 font-display text-xl leading-tight transition-colors hover:text-tint">{inProgress[0].title}</h3>
+                    </Link>
+                    <p className="mt-1 truncate text-xs text-ink-soft">{inProgress[0].author || "Unknown author"}</p>
+                    <div className="mt-4 h-1 overflow-hidden rounded-full bg-ink/10">
+                      <div className="h-full rounded-full bg-pencil transition-[width] duration-500 motion-reduce:transition-none" style={{ width: `${safeProgress(inProgress[0].progress)}%` }} />
+                    </div>
+                    <div className="mt-2 flex min-w-0 justify-between gap-3 font-mono text-[10px] text-ink-soft">
+                      <span className="truncate">Ch. {inProgress[0].current_chapter} · {inProgress[0].progress}%</span>
+                      <span className="shrink-0 text-tint">{inProgress[0].last_read_at ? new Date(inProgress[0].last_read_at).toLocaleDateString() : "New"}</span>
                     </div>
                   </div>
                 </div>
-                 <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 font-mono text-[10px] text-ink-soft">
-                   <span className="min-w-0 truncate">
-                    Ch. {b.current_chapter} · {b.progress}%
-                  </span>
-                   <span className="shrink-0 whitespace-nowrap text-tint">
-                    {b.last_read_at ? new Date(b.last_read_at).toLocaleDateString() : ""}
-                  </span>
+                <Button asChild className="mt-5 w-full">
+                  <Link to="/read/$slug" params={{ slug: inProgress[0].slug }}>
+                    Resume reading <ArrowRight aria-hidden="true" />
+                  </Link>
+                </Button>
+              </article>
+            )}
+            {inProgress[1] && (
+              <Link to="/read/$slug" params={{ slug: inProgress[1].slug }} className="grid min-w-0 animate-fade-up grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-xl border border-line bg-paper-deep/30 p-4 transition-colors hover:border-inkline [animation-delay:80ms]">
+                {inProgress[1].cover_url ? (
+                  <img src={inProgress[1].cover_url} alt={`Cover of ${inProgress[1].title}`} className="h-14 w-10 rounded object-cover" />
+                ) : (
+                  <CoverPlate className="h-14 w-10 rounded" />
+                )}
+                <div className="min-w-0">
+                  <h3 className="truncate font-display text-base">{inProgress[1].title}</h3>
+                  <p className="truncate text-xs text-ink-soft">{inProgress[1].author || "Unknown author"}</p>
+                  <div className="mt-2 h-0.5 overflow-hidden rounded-full bg-ink/10">
+                    <div className="h-full bg-pencil" style={{ width: `${safeProgress(inProgress[1].progress)}%` }} />
+                  </div>
+                </div>
+                <div className="max-w-24 text-right font-mono text-[9px] text-ink-soft sm:text-[10px]">
+                  <p>Ch. {inProgress[1].current_chapter} · {inProgress[1].progress}%</p>
+                  <p className="mt-1 text-tint">{inProgress[1].last_read_at ? new Date(inProgress[1].last_read_at).toLocaleDateString() : "New"}</p>
                 </div>
               </Link>
-            ))}
+            )}
+            <a href="#shelf" className="flex items-center justify-center gap-2 py-2 font-mono text-[10px] uppercase text-ink-soft transition-colors hover:text-ink">
+              View full library <ArrowRight className="size-3" aria-hidden="true" />
+            </a>
           </div>
         )}
       </section>
 
-      <section className="mx-auto max-w-[960px] border-t border-line px-5 py-8 sm:px-6 sm:py-10">
+      <section id="shelf" className="mx-auto max-w-[960px] scroll-mt-6 border-t border-line px-5 py-8 sm:px-6 sm:py-10">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
           <h2 className="label min-w-0 text-tint">(b) The shelf</h2>
           <span className="shrink-0 font-mono text-[10px] text-ink-soft">{books.length} books</span>
         </div>
+
+        {books.length > 0 && (
+          <div className="mt-5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
+            <div className="relative min-w-0">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
+              <Input value={libraryQuery} onChange={(event) => setLibraryQuery(event.target.value)} placeholder="Search title, author, series…" aria-label="Search your library" className="h-11 bg-paper-deep/30 pl-10 pr-10" />
+              {libraryQuery && (
+                <Button type="button" variant="ghost" size="icon" onClick={() => setLibraryQuery("")} aria-label="Clear library search" className="absolute right-1 top-1 size-9">
+                  <X aria-hidden="true" />
+                </Button>
+              )}
+            </div>
+            <select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)} aria-label="Sort library" className="h-11 w-full rounded-md border border-input bg-paper px-3 text-sm text-ink outline-none focus:ring-1 focus:ring-ring">
+              <option value="recent">Recently read</option>
+              <option value="added">Recently added</option>
+              <option value="title">Title A–Z</option>
+              <option value="progress">Reading progress</option>
+            </select>
+          </div>
+        )}
 
         {booksQuery.isLoading ? (
           <p className="mt-5 text-center font-mono text-[11px] text-ink-soft">Loading your shelf…</p>
@@ -221,6 +283,11 @@ function Library() {
           <p className="mt-5 rounded-xl border border-dashed border-line px-5 py-10 text-center text-sm text-ink-soft">
             Your shelf is empty. Everything you add lives here — grouped by series, sorted by you.
           </p>
+        ) : visibleBooks.length === 0 ? (
+          <div className="mt-5 rounded-xl border border-dashed border-line px-5 py-10 text-center">
+            <p className="text-sm text-ink-soft">No books match “{libraryQuery.trim()}”.</p>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setLibraryQuery("")} className="mt-3">Clear search</Button>
+          </div>
         ) : (
           <>
             {series.map((s) => (
@@ -231,7 +298,7 @@ function Library() {
               </div>
             ))}
             <div className="mt-4 grid gap-4 sm:mt-3 sm:grid-cols-3">
-              {books.map((b, i) => (
+              {visibleBooks.map((b, i) => (
                 <Link
                   key={b.slug}
                   to="/book/$slug"

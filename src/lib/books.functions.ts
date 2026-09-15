@@ -22,6 +22,7 @@ export type BookRow = {
   progress: number;
   scroll_pos: number;
   last_read_at: string | null;
+  created_at: string;
 };
 
 export type ChapterRow = {
